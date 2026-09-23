@@ -76,7 +76,7 @@ def generate_forecast(
             if calibrate else "No weather-forecast bias correction was applied.",
         ],
         "warnings": [
-            f"CSV timezone interpreted as {source_timezone}; organizer confirmation is pending.",
+            f"Organizer CSV has no declared timezone; interpreted as {source_timezone} for this scenario.",
             "Measured wind-sensor height and rated capacities are unknown; power is normalized, not MW.",
             "February actual power was not supplied; no February error metric is available.",
         ],

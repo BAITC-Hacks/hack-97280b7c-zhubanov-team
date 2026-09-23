@@ -29,4 +29,4 @@ python -m forecast.service --source-timezone Asia/Almaty
 
 The second command writes the full forecast to ignored `data/cache/rolling-forecasts.json`. A verified run produced 29 daily issues, 2,784 turbine-hours and 28 comparisons. The normalized-power model fits both turbines in about two seconds on the current laptop; no GPU or NVIDIA API is needed for training. Model/validation details are in `docs/model-validation.md`.
 
-Do not present `0.183` as a definitive competition score: it is an exploratory January MAE conditional on an **unconfirmed** CSV timezone and wind-height proxy. There are no supplied February actual-power measurements, so February MAE is unavailable. The API should preserve the timezone and data-source warnings in its response.
+The team reports that organizers provided **no timezone definition** for the CSV timestamps. Keep `source_timezone` explicit in every run and retain the warning in the API response. The broad January MAE is 0.173 under `Asia/Almaty` versus 0.206 under `UTC`; neither is a definitive competition score. There are no supplied February actual-power measurements, so February MAE is unavailable.
