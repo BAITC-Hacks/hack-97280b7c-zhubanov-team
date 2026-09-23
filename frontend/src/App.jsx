@@ -209,7 +209,7 @@ function App() {
         <section className="forecast-section" aria-labelledby="forecast-title">
           <div className="forecast-section__heading">
             <div><div className="section-label"><span className="section-label__number">02</span><h2 id="forecast-title">Почасовой прогноз</h2></div><p className="section-description">Значения в диапазоне 0–1 · нормализованная активная мощность</p></div>
-            <div className="forecast-section__meta"><span className="coverage-pill"><span className="coverage-pill__dot" />{pointsCount} / {horizon} точек</span><span className="unit-pill">БЕЗ MW / MWh</span></div>
+            <div className="forecast-section__meta"><span className="coverage-pill"><span className="coverage-pill__dot" />{pointsCount} / {forecast.horizon_hours} точек</span><span className="unit-pill">БЕЗ MW / MWh</span></div>
           </div>
 
           <div className={`chart-grid ${loading ? 'chart-grid--loading' : ''}`} aria-busy={loading}>
