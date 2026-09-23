@@ -1,26 +1,21 @@
-# Codex instructions for the HackAlem team
+# HackAlem: wind farm generation forecasting
 
-This repository implements the official case [AI Agent: Organizational Structure and Functions Analysis](https://docs.google.com/document/d/1m-r31DH6Q__9OcN4WiP453CE6drlTTQ8Px3xi3IiVHk/edit). Read [docs/case-map.md](docs/case-map.md), [docs/api-contract.md](docs/api-contract.md), and [docs/team-tasks.md](docs/team-tasks.md) before changing code.
+The final case is [Agentic AI for wind farm generation forecasting](https://docs.google.com/document/d/1Fn5IJoj87Fx7IAknG26zkfX8c0eq7feCujd0m66PCgY/edit). Read `docs/case-map.md`, `docs/api-contract.md`, and `docs/team-tasks.md` before coding. Earlier organizational-analysis plans are obsolete.
 
-The product compares organization documents before and after reorganization. It identifies retained, reorganized, and new units; possible lost or duplicate functions and potential conflicts of interest; and an analytical conclusion. Every substantive finding must point to an exact supplied document and clause, paragraph, page, or sheet row. Conclusions are advisory and require a responsible employee's review.
+## Non-negotiable data rules
 
-## Shared rules
+- Training turbine observations end at **2026-01-31 23:50** in the supplied CSVs. Never fit, calibrate, or select a model with February 2026 turbine observations when simulating a January 31 issue.
+- For every historical issue time, weather features must come from a forecast model run that was already available then. Never substitute later observed, reanalysis, or stitched historical weather as if it were a forecast.
+- Record `issue_time_utc`, `weather_run_utc`, weather source/model, forecast valid time, and training cutoff in each generated result. Enforce `weather_run_utc < issue_time_utc` and an explicit availability buffer.
+- The target is **normalized active power** in [0,1]. Do not label it MW/MWh or sum turbine output into plant energy without nameplate capacities. Timezone of source timestamps is not stated; make the assumption explicit and configurable.
+- Keep raw supplied CSVs, caches, credentials, and `.env` out of Git. Synthetic fixtures may be committed if clearly labeled.
 
-- Follow the official case and provided control documents. Do not invent a lost function, duplication, conflict, requirement, source quote, or successful action.
-- A changed clause number or department name alone is not a lost function. Compare meaning and ownership, and show both before and after evidence where available.
-- Separate observed facts from potential risks. When evidence is missing or ambiguous, say so in the result.
-- Keep the document set local unless its sharing rights are confirmed. Never commit API keys, `.env`, downloaded private documents, generated caches, or personal information.
-- Use [docs/api-contract.md](docs/api-contract.md) as the shared interface. The integration owner updates it before changing shared fields.
-- Prefer one reliable path: upload documents, extract cited functions, compare, review findings, export/read conclusion. Add optional legislation and benchmarking only after all mandatory behavior works.
+## Team workflow
 
-## Ownership and Git
+- Frontend/design owns `frontend/` and branch `feat/frontend`.
+- Backend/API and data integration owns `backend/`, API/runtime setup, and branch `feat/backend-api`.
+- Forecasting/backtest owns `forecast/`, model/evaluation, and branch `feat/forecast-core`.
+- Each teammate works in a separate clone and Codex session. Open a PR into `main` for each feature. Merge only after a small end-to-end check and contract review. Do not edit another owner's directory without coordinating.
+- The integration owner updates `docs/api-contract.md` before shared JSON fields change.
 
-- Frontend/design: `frontend/` on `feat/frontend`.
-- Backend/API and integration: `backend/`, dependency and run configuration, `README.md`, shared contract, and merge coordination on `feat/backend-api`.
-- Agent/comparison logic: `agent/` and its focused checks on `feat/agent-core`.
-- Each person uses their own clone and Codex session. Start each task by checking the branch and reading this file. Do not edit another owner's files without a team agreement.
-- Make reviewable commits and pull requests into `main`; keep `main` runnable. Avoid force-push and secret exposure.
-
-## Definition of done
-
-The documented control scenario shows the changed units, a supported function comparison, potential losses/duplications/conflicts when present, clickable exact source fragments, and a readable conclusion. It handles unsupported or unreadable input without inventing findings. Run the documented end-to-end path and state any limits in the README.
+The demo must show two turbine 24–48-hour forecasts, archived weather provenance, an analysis/recalculation action, and a repeatable sequence of daily historical issue times through February 2026. If February actual power is unavailable, report forecast coverage and validation on pre-February data, not February accuracy.

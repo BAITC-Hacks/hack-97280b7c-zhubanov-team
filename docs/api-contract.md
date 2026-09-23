@@ -1,49 +1,30 @@
-# Shared API and analysis contract (v1)
+# Shared API contract — draft v1
 
-The backend integrator owns changes to this file. Frontend and agent owners agree on a proposed change before changing code that depends on it.
+This interface unblocks parallel frontend, API, and forecast work. The backend owner may refine it with the team before code integration. Timestamps are ISO-8601 UTC with `Z`; predictions are unitless normalized active power in [0,1].
 
-## Request
+`POST /api/forecast/run`
 
-`POST /api/analyze` with `multipart/form-data` fields `before_files` and `after_files`, each accepting one or more Word (`.docx`), text PDF (`.pdf`), or Excel (`.xlsx`) files. Also accept `.txt` because the supplied edition No. 9 is exposed as plain text. The first demo may use the two supplied editions. The API may process synchronously for the prototype. A file that cannot be read must return a clear error; do not silently omit it.
+```json
+{"issue_time_utc":"2026-01-31T12:00:00Z","horizon_hours":48}
+```
 
-`GET /api/health` returns `{"status":"ok"}` after backend startup.
-
-## Successful response
+Response:
 
 ```json
 {
-  "status": "completed",
-  "documents": [
-    {"id": "before-1", "filename": "edition-8.docx", "side": "before"},
-    {"id": "after-1", "filename": "edition-9.docx", "side": "after"}
+  "run_id":"jan31-1200",
+  "issue_time_utc":"2026-01-31T12:00:00Z",
+  "training_cutoff_utc":"2026-01-31T11:50:00Z",
+  "weather":{"source":"Open-Meteo Single Runs API","model":"ecmwf_ifs","run_time_utc":"2026-01-31T00:00:00Z"},
+  "turbines":[
+    {"id":"turbine-1","latitude":43.643198,"longitude":78.538828,"hourly":[{"valid_time_utc":"2026-01-31T13:00:00Z","predicted_normalized_power":0.42}]},
+    {"id":"turbine-2","latitude":43.645150,"longitude":78.535604,"hourly":[{"valid_time_utc":"2026-01-31T13:00:00Z","predicted_normalized_power":0.40}]}
   ],
-  "units": [
-    {
-      "before_name": null,
-      "after_name": "Департамент ИТ-аудита и анализа данных",
-      "change": "created",
-      "evidence": [{"document_id": "after-1", "section": "3.4", "excerpt": "Департамент ИТ-аудита и анализа данных (ДИТААД)."}]
-    }
-  ],
-  "functions": [
-    {
-      "description": "Мониторинг выполнения корректирующих мероприятий",
-      "before_unit": "БВА",
-      "after_unit": "БВА",
-      "change": "retained",
-      "before_evidence": [{"document_id": "before-1", "section": "5.8.7", "excerpt": "осуществлять мониторинг выполнения Руководителями объекта аудита мероприятий"}],
-      "after_evidence": [{"document_id": "after-1", "section": "5.7.7", "excerpt": "осуществлять мониторинг выполнения Руководителями объекта аудита мероприятий"}]
-    }
-  ],
-  "findings": [],
-  "conclusion": "Структура изменилась; пример не утверждает неподтвержденных потерь или конфликтов.",
-  "limitations": ["Выводы требуют проверки ответственным сотрудником."],
-  "review_required": true
+  "analysis":["Forecast relies on archived weather run 2026-01-31 00:00 UTC."],
+  "warnings":["CSV timezone has not been confirmed by the organizer."]
 }
 ```
 
-This is a **contract illustration**, not a completed analysis of the documents. Real fields must be generated from supplied files. `units[].change` uses `retained | reorganized | created`; `functions[].change` uses `retained | transferred | possibly_lost | added`. Each `findings[]` item uses `type` (`possible_loss | possible_duplication | potential_conflict`), `summary`, `explanation`, `evidence[]`, and `review_required: true`. Every substantial finding needs at least one exact source excerpt. A possible loss should include the before source and an explicit statement that the function was not found after review of the supplied after set.
+The example prediction values are placeholders only. Actual responses must contain exactly `horizon_hours` hourly points per turbine and a cutoff that respects the simulated issue time. Until the CSV timezone is confirmed, `training_cutoff_utc` is provisional and must be calculated from an explicit configuration, not inferred from the naive CSV timestamp.
 
-Each evidence item has `document_id`, `section`, `excerpt`, and optional `page` or `sheet`/`row` where the file format provides them. Never fabricate a PDF page for DOCX or Excel. Backend should verify that returned excerpts actually occur in the extracted source. If no findings are supported, return an empty array and explain that result in `conclusion`.
-
-Invalid input returns an HTTP 4xx response with `{"error":{"code":"...","message":"..."}}`. Unexpected processing failures return an HTTP 5xx response with a readable message that does not expose secrets. API keys remain on the server.
+`POST /api/forecast/rolling` takes `{"first_issue_date":"2026-01-31","last_issue_date":"2026-02-28","issue_hour_utc":12,"horizon_hours":48}` and returns one run per day plus coverage/validation metadata. `POST /api/forecast/run` can be repeated after a new eligible weather run is available; the UI compares the two results and shows why they changed.
