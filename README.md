@@ -11,4 +11,15 @@ Download the private organizer files into ignored local paths:
 - [Turbine 1](https://drive.google.com/file/d/1hubNF3tgc7DbgXxHLpIF6zIBHtvMyzLX/view) → `data/input/turbine-1.csv`
 - [Turbine 2](https://drive.google.com/file/d/1_WTrYhZ3-71A9IpkBb9RHPN7ncVaupBk/view) → `data/input/turbine-2.csv`
 
-Never commit these source files. Run instructions and validation commands will be added with the implementation. Until then this repository contains the agreed requirements and interface; it is not yet a working forecast application.
+Never commit these source files.
+
+## Archived weather starter
+
+The first working component fetches an archived ECMWF IFS forecast for a simulated issue time and one turbine. It uses only a model run initialized at least 12 hours earlier, selects 24 or 48 future hourly values, and saves raw responses in ignored `data/cache/weather/` for reproducibility. The 12-hour buffer is a conservative availability assumption, not verified publication metadata.
+
+```powershell
+python -m backend.weather 2026-01-31T12:00:00Z turbine-1 --hours 48
+python -m unittest discover -s tests -v
+```
+
+The weather client is ready; turbine-power modeling, API, UI, rolling backtest, and end-to-end validation remain in progress. It does not claim to produce a generation forecast yet.
