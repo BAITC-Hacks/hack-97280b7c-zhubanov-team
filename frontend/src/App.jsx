@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import ForecastChart from './ForecastChart.jsx';
 import ForecastEvidence from './ForecastEvidence.jsx';
 import { downloadText, forecastCsv, forecastFilename, forecastPassport } from './export.js';
@@ -81,6 +81,10 @@ function App() {
   const [message, setMessage] = useState('');
   const [exportMessage, setExportMessage] = useState('');
   const [preparedExport, setPreparedExport] = useState(null);
+  const [explanation, setExplanation] = useState(null);
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const [explanationError, setExplanationError] = useState('');
+  const explanationRequest = useRef(0);
 
   const issueUtc = useMemo(() => {
     try { return issueValueToUtc(issueValue); } catch { return ''; }
@@ -92,6 +96,49 @@ function App() {
   const isLastDay = issueValue.slice(0, 10) === '2026-02-28';
   const showingDemoData = forecast.origin === 'demo';
   const exportDisabled = loading || isStale || showingDemoData || Boolean(error);
+  const explanationDisabled = exportDisabled || explanationLoading;
+  const visibleExplanation = !explanationDisabled && explanation?.issueTime === forecast.issue_time_utc && explanation?.horizon === horizon ? explanation.result : null;
+
+  function clearExplanation() {
+    explanationRequest.current += 1;
+    setExplanation(null);
+    setExplanationLoading(false);
+    setExplanationError('');
+  }
+
+  async function requestExplanation() {
+    if (explanationDisabled) return;
+    const requestId = ++explanationRequest.current;
+    const currentIssue = forecast.issue_time_utc;
+    const currentHorizon = horizon;
+    setExplanation(null);
+    setExplanationLoading(true);
+    setExplanationError('');
+    try {
+      const previousIssue = comparison?.current_issue_time_utc === currentIssue
+        ? comparison.previous_issue_time_utc : null;
+      const response = await fetch(`${API_BASE_URL}/api/forecast/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ issue_time_utc: currentIssue, horizon_hours: currentHorizon,
+          ...(previousIssue ? { previous_issue_time_utc: previousIssue } : {}) }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.detail || `Сервис объяснений ответил с ошибкой ${response.status}.`);
+      if (!['ai', 'local'].includes(payload?.mode) || typeof payload?.text !== 'string'
+        || payload?.evidence?.issue_time_utc !== currentIssue
+        || payload?.evidence?.horizon_hours !== currentHorizon) {
+        throw new Error('Ответ объясняющего агента не соответствует текущему выпуску.');
+      }
+      if (requestId === explanationRequest.current) {
+        setExplanation({ issueTime: currentIssue, horizon: currentHorizon, result: payload });
+      }
+    } catch (explainError) {
+      if (requestId === explanationRequest.current) setExplanationError(getErrorMessage(explainError));
+    } finally {
+      if (requestId === explanationRequest.current) setExplanationLoading(false);
+    }
+  }
 
   function exportForecast(extension) {
     if (exportDisabled) return;
@@ -107,6 +154,7 @@ function App() {
   }
 
   async function runForecast(overrides = {}) {
+    clearExplanation();
     const selectedValue = overrides.issueValue ?? issueValue;
     const selectedHorizon = overrides.horizon ?? horizon;
     const selectedMode = overrides.mode ?? mode;
@@ -194,19 +242,19 @@ function App() {
           <div className="control-panel__top">
             <div className="section-label"><span className="section-label__number">01</span><h2 id="controls-title">Параметры выпуска</h2></div>
             <div className="mode-control" role="group" aria-label="Источник прогноза">
-              <button type="button" className={mode === 'demo' ? 'mode-button is-selected' : 'mode-button'} aria-pressed={mode === 'demo'} onClick={() => { setMode('demo'); setError(''); setMessage(''); }} disabled={loading}>Демо</button>
-              <button type="button" className={mode === 'api' ? 'mode-button is-selected' : 'mode-button'} aria-pressed={mode === 'api'} onClick={() => { setMode('api'); setError(''); setMessage(''); }} disabled={loading}>Backend API</button>
+              <button type="button" className={mode === 'demo' ? 'mode-button is-selected' : 'mode-button'} aria-pressed={mode === 'demo'} onClick={() => { clearExplanation(); setMode('demo'); setError(''); setMessage(''); }} disabled={loading}>Демо</button>
+              <button type="button" className={mode === 'api' ? 'mode-button is-selected' : 'mode-button'} aria-pressed={mode === 'api'} onClick={() => { clearExplanation(); setMode('api'); setError(''); setMessage(''); }} disabled={loading}>Backend API</button>
             </div>
           </div>
           <div className="control-panel__fields">
             <label className="field field--issue">
               <span className="field__label"><Icon name="clock" size={15} />Время выпуска <span className="field__utc">UTC</span></span>
-              <input type="datetime-local" value={issueValue} min={FIRST_ISSUE} max={LAST_ISSUE} step="3600" onChange={(event) => { setIssueValue(event.target.value); setMessage(''); }} disabled={loading} aria-label="Выберите дату и время выпуска по UTC" />
+              <input type="datetime-local" value={issueValue} min={FIRST_ISSUE} max={LAST_ISSUE} step="3600" onChange={(event) => { clearExplanation(); setIssueValue(event.target.value); setMessage(''); }} disabled={loading} aria-label="Выберите дату и время выпуска по UTC" />
             </label>
             <div className="field field--horizon">
               <span className="field__label"><Icon name="wind" size={15} />Горизонт прогноза</span>
               <div className="horizon-switch" role="group" aria-label="Горизонт прогноза в часах">
-                {[24, 48].map((hours) => <button key={hours} type="button" className={horizon === hours ? 'horizon-switch__button is-active' : 'horizon-switch__button'} aria-pressed={horizon === hours} onClick={() => { setHorizon(hours); setMessage(''); }} disabled={loading}>{hours} ч</button>)}
+                {[24, 48].map((hours) => <button key={hours} type="button" className={horizon === hours ? 'horizon-switch__button is-active' : 'horizon-switch__button'} aria-pressed={horizon === hours} onClick={() => { clearExplanation(); setHorizon(hours); setMessage(''); }} disabled={loading}>{hours} ч</button>)}
               </div>
             </div>
             <button className="run-button" type="button" onClick={() => runForecast()} disabled={loading || !issueUtc}>
@@ -273,6 +321,25 @@ function App() {
         </section>
 
         <ForecastEvidence forecast={forecast} loading={loading} isStale={isStale} />
+
+        <section className="explanation-panel" aria-labelledby="explanation-title">
+          <div className="explanation-panel__heading">
+            <div><div className="section-label"><span className="section-label__number">ИИ</span><h2 id="explanation-title">Подробное объяснение прогноза</h2></div>
+              <p>Агент собирает факты о погоде, модели, обеих турбинах и пересмотре выпуска. Числа прогноза он не меняет.</p></div>
+            <button type="button" className="step-button explanation-panel__button" onClick={requestExplanation} disabled={explanationDisabled}>
+              {explanationLoading ? 'Объясняем…' : 'Объяснить этот выпуск'}
+            </button>
+          </div>
+          {showingDemoData && <p className="explanation-panel__hint">Для объяснения по данным организаторов выберите Backend API и рассчитайте выпуск.</p>}
+          {isStale && !showingDemoData && <p className="explanation-panel__hint">Сначала обновите прогноз для выбранных параметров.</p>}
+          {explanationError && <p className="explanation-panel__error" role="alert">{explanationError}</p>}
+          {visibleExplanation && <div className="explanation-panel__result" role="status">
+            <strong>{visibleExplanation.mode === 'ai' ? 'Ответ NVIDIA AI' : 'Локальное объяснение'}</strong>
+            <p className="explanation-panel__text">{visibleExplanation.text}</p>
+            <small>{visibleExplanation.notice}</small>
+            <small>Часовой пояс CSV неизвестен. Время публикации погоды не подтверждено. Точность за февраль не измерена.</small>
+          </div>}
+        </section>
 
         <section className="provenance-section" aria-labelledby="provenance-title">
           <div className="section-label provenance-section__title"><span className="section-label__number">04</span><h2 id="provenance-title">Происхождение и ограничения</h2></div>
