@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from backend.config import Settings
+from backend.data import audit_inputs
 from backend.schemas import ForecastResponse, RollingRequest, RollingResponse, RunRequest
 from backend.weather import parse_utc
 from forecast.service import generate_forecast, generate_rolling_forecasts
@@ -52,8 +53,9 @@ def create_app(
         return {"status": "ok"}
 
     @app.post("/api/forecast/run", response_model=ForecastResponse)
-    async def run_forecast(payload: RunRequest) -> dict[str, Any]:
+    def run_forecast(payload: RunRequest) -> dict[str, Any]:
         issue_time = _validate_issue_time(payload.issue_time_utc)
+        audit_inputs(runtime.data_dir, issue_time, runtime.source_timezone)
         return forecast_generator(
             issue_time,
             payload.horizon_hours,
@@ -62,7 +64,12 @@ def create_app(
         )
 
     @app.post("/api/forecast/rolling", response_model=RollingResponse)
-    async def run_rolling(payload: RollingRequest) -> dict[str, Any]:
+    def run_rolling(payload: RollingRequest) -> dict[str, Any]:
+        if (payload.last_issue_date - payload.first_issue_date).days > 60:
+            raise ValueError("Date range must be ordered and at most 61 days")
+        audit_inputs(runtime.data_dir,
+                     f"{payload.last_issue_date.isoformat()}T{payload.issue_hour_utc:02d}:00:00Z",
+                     runtime.source_timezone)
         return rolling_generator(
             payload.first_issue_date.isoformat(),
             payload.last_issue_date.isoformat(),

@@ -1,9 +1,16 @@
 from datetime import date
 from unittest.mock import patch
+import pytest
 
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+
+
+@pytest.fixture(autouse=True)
+def isolated_http_contract():
+    with patch("backend.app.audit_inputs", return_value={}):
+        yield
 
 
 def forecast_fixture() -> dict:

@@ -67,3 +67,18 @@ Invoke-RestMethod http://127.0.0.1:8000/api/forecast/rolling `
 ```
 
 The API keeps the selected CSV timezone visible as a scenario warning. February actual power was not supplied, so the rolling response reports forecasts and recalculation evidence, not February MAE.
+
+Before forecasting, the API checks both input files for invalid timestamps,
+duplicate pre-cutoff rows, ten-minute cadence and invalid measurements.
+Hourly aggregation keeps incomplete hours as missing (six samples are required);
+it never fills gaps. The ML module continues to train on its original ten-minute
+observations. Inspect data coverage with:
+
+```powershell
+python -m backend.data --cutoff 2026-01-31T12:00:00Z --source-timezone Asia/Almaty
+```
+
+Run all tests with `python -m pip install -r requirements-dev.txt` followed by
+`python -m pytest`. The integration test exercises 29 issues through the actual
+API and model using explicitly synthetic CSV and weather inputs. It does not
+measure real forecast accuracy or verify external weather availability.
