@@ -4,6 +4,8 @@ Official case: [Agentic AI for wind farm generation forecasting](https://docs.go
 
 The organizer supplied two 10-minute CSV histories ending January 31, 2026. They contain no February actual power, so February forecast error cannot yet be measured. See [data audit](docs/data-audit.md), [case map](docs/case-map.md), [API contract](docs/api-contract.md), and [team tasks](docs/team-tasks.md).
 
+The active team schedule is the [four-hour sprint plan](docs/four-hour-sprint.md), with an individual push at the end of every hour.
+
 ## Data setup
 
 Download the private organizer files into ignored local paths:
