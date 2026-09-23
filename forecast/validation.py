@@ -49,6 +49,7 @@ def validate_issue(
     source_timezone: str,
     data_dir: Path | str = Path("data/input"),
     wind_feature: str = "wind_speed_100m",
+    additive_bias_normalized_power: float = 0.0,
 ) -> dict:
     """Fit before issue; compare issued 48-hour forecast with later observed power."""
     issue = parse_utc(issue_time_utc)
@@ -63,23 +64,29 @@ def validate_issue(
     )
     actual = hourly_actual_power(turbine_id, source_timezone=source_timezone, data_dir=data_dir)
     predictions = pd.Series(
-        [row["predicted_normalized_power"] for row in result["hourly"]],
+        [max(0.0, min(1.0, row["predicted_normalized_power"] + additive_bias_normalized_power))
+         for row in result["hourly"]],
         index=pd.DatetimeIndex([parse_utc(row["valid_time_utc"]) for row in result["hourly"]]),
     )
     aligned = pd.DataFrame({"prediction": predictions, "actual": actual.reindex(predictions.index)}).dropna()
     if aligned.empty:
         raise ValueError("No measured power hours align with this forecast; check source timezone")
     errors = np.abs(aligned["prediction"] - aligned["actual"])
+    signed_errors = aligned["prediction"] - aligned["actual"]
     return {
         "issue_time_utc": issue.isoformat().replace("+00:00", "Z"),
         "turbine_id": turbine_id,
         "source_timezone_assumption": source_timezone,
         "weather_run_utc": weather["weather_run_utc"],
         "weather_wind_feature": wind_feature,
+        "additive_bias_normalized_power": additive_bias_normalized_power,
         "forecast_hours": 48,
         "evaluated_hours": int(len(aligned)),
         "mae_normalized_power": float(errors.mean()),
         "absolute_error_sum": float(errors.sum()),
+        "mean_error_normalized_power": float(signed_errors.mean()),
+        "mean_prediction_normalized_power": float(aligned["prediction"].mean()),
+        "mean_actual_normalized_power": float(aligned["actual"].mean()),
         "training_rows": result["training_rows"],
         "latest_training_time_utc": result["latest_training_time_utc"],
     }
