@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import ForecastChart from './ForecastChart.jsx';
+import ForecastEvidence from './ForecastEvidence.jsx';
+import { downloadText, forecastCsv, forecastFilename, forecastPassport } from './export.js';
+import { localizeMessage } from './messages.js';
 import { JANUARY_DIAGNOSTIC } from './diagnostics.js';
 import {
   compareForecastRuns,
@@ -76,6 +79,8 @@ function App() {
   const [error, setError] = useState('');
   const [comparison, setComparison] = useState(null);
   const [message, setMessage] = useState('');
+  const [exportMessage, setExportMessage] = useState('');
+  const [preparedExport, setPreparedExport] = useState(null);
 
   const issueUtc = useMemo(() => {
     try { return issueValueToUtc(issueValue); } catch { return ''; }
@@ -86,6 +91,20 @@ function App() {
   const issueNumber = String(issueIndex + 1).padStart(2, '0');
   const isLastDay = issueValue.slice(0, 10) === '2026-02-28';
   const showingDemoData = forecast.origin === 'demo';
+  const exportDisabled = loading || isStale || showingDemoData || Boolean(error);
+
+  function exportForecast(extension) {
+    if (exportDisabled) return;
+    try {
+      const content = extension === 'csv' ? forecastCsv(forecast) : forecastPassport(forecast, comparison);
+      const filename = forecastFilename(forecast, extension);
+      setPreparedExport({ content, filename });
+      downloadText(content, filename, extension === 'csv' ? 'text/csv;charset=utf-8' : 'application/json;charset=utf-8');
+      setExportMessage(`Выгрузка ${extension.toUpperCase()} подготовлена для выпуска ${formatUtc(forecast.issue_time_utc)} UTC. Сохранение зависит от настроек браузера.`);
+    } catch (exportError) {
+      setExportMessage(`Не удалось подготовить выгрузку: ${exportError.message}`);
+    }
+  }
 
   async function runForecast(overrides = {}) {
     const selectedValue = overrides.issueValue ?? issueValue;
@@ -101,6 +120,8 @@ function App() {
     }
 
     setLoading(true);
+    setExportMessage('');
+    setPreparedExport(null);
     setError('');
     setMessage('');
     setComparison(null);
@@ -194,7 +215,7 @@ function App() {
               {!loading && <Icon name="arrow" size={16} />}
             </button>
           </div>
-          {isStale && <p className="control-hint" role="status">Параметры изменены. Нажмите «Пересчитать прогноз», чтобы обновить графики.</p>}
+          {isStale && !loading && <p className="control-hint" role="status">Параметры изменены. Нажмите «Пересчитать прогноз», чтобы обновить графики.</p>}
         </section>
 
         {error && (
@@ -210,6 +231,21 @@ function App() {
           <div className="forecast-section__heading">
             <div><div className="section-label"><span className="section-label__number">02</span><h2 id="forecast-title">Почасовой прогноз</h2></div><p className="section-description">Значения в диапазоне 0–1 · нормализованная активная мощность</p></div>
             <div className="forecast-section__meta"><span className="coverage-pill"><span className="coverage-pill__dot" />{pointsCount} / {forecast.horizon_hours} точек</span><span className="unit-pill">БЕЗ MW / MWh</span></div>
+          </div>
+
+          <div className="export-panel">
+            <div><strong>Сохранить текущий выпуск</strong><p>CSV — значения для двух турбин. Паспорт JSON — прогноз, источники, допущения и доступное сравнение выпусков.</p></div>
+            <div className="export-panel__actions">
+              <button type="button" className="step-button" onClick={() => exportForecast('csv')} disabled={exportDisabled}>Скачать CSV</button>
+              <button type="button" className="step-button" onClick={() => exportForecast('json')} disabled={exportDisabled}>Паспорт JSON</button>
+            </div>
+            {exportDisabled && <p className="export-panel__hint">{loading ? 'Выгрузка будет доступна после расчёта.' : showingDemoData ? 'Для выгрузки получите прогноз из Backend API.' : 'Пересчитайте прогноз: выгрузка доступна для актуального успешного результата.'}</p>}
+            {exportMessage && <p className="export-panel__hint" role="status">{exportMessage}</p>}
+            {preparedExport && !exportDisabled && <details className="export-preview">
+              <summary>Показать содержимое файла</summary>
+              <p>Если браузер не сохранил файл, выделите содержимое поля и скопируйте его в файл с указанным именем.</p>
+              <label><span>{preparedExport.filename}</span><textarea readOnly aria-label="Содержимое подготовленного файла" value={preparedExport.content} spellCheck={false} /></label>
+            </details>}
           </div>
 
           <div className={`chart-grid ${loading ? 'chart-grid--loading' : ''}`} aria-busy={loading}>
@@ -235,6 +271,8 @@ function App() {
           </div>
           {!isScheduledIssue && <p className="release-note">Выбрано нестандартное время. В календаре ежедневных выпусков используется 12:00 UTC.</p>}
         </section>
+
+        <ForecastEvidence forecast={forecast} loading={loading} isStale={isStale} />
 
         <section className="provenance-section" aria-labelledby="provenance-title">
           <div className="section-label provenance-section__title"><span className="section-label__number">04</span><h2 id="provenance-title">Происхождение и ограничения</h2></div>
@@ -283,8 +321,8 @@ function App() {
 
           {(forecast.analysis.length > 0 || forecast.warnings.length > 0) && (
             <div className="notes-panel">
-              {forecast.analysis.map((item, index) => <p key={`analysis-${index}`} className="notes-panel__analysis"><span>АНАЛИЗ</span>{item}</p>)}
-              {forecast.warnings.map((item, index) => <p key={`warning-${index}`} className="notes-panel__warning"><span><Icon name="alert" size={14} />ПРИМЕЧАНИЕ</span>{item}</p>)}
+              {forecast.analysis.map((item, index) => <p key={`analysis-${index}`} className="notes-panel__analysis"><span>АНАЛИЗ</span>{localizeMessage(item)}</p>)}
+              {forecast.warnings.map((item, index) => <p key={`warning-${index}`} className="notes-panel__warning"><span><Icon name="alert" size={14} />ПРИМЕЧАНИЕ</span>{localizeMessage(item)}</p>)}
             </div>
           )}
         </section>
