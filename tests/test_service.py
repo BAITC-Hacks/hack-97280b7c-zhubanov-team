@@ -10,7 +10,7 @@ class ForecastServiceTest(unittest.TestCase):
         issue = datetime(2026, 1, 31, 12, tzinfo=timezone.utc)
         hours = [
             {"valid_time_utc": (issue + timedelta(hours=index)).isoformat().replace("+00:00", "Z"),
-             "wind_speed_100m": 6.0}
+             "wind_speed_100m": 6.0, "temperature_2m": 5.0}
             for index in range(1, 25)
         ]
 
