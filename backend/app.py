@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from backend.config import Settings
-from backend.schemas import ForecastResponse, RunRequest
+from backend.schemas import ForecastResponse, RollingRequest, RollingResponse, RunRequest
 from backend.service import (
     DomainValidationError,
     ForecastServiceError,
@@ -28,6 +28,10 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Wind Farm Forecast API", version="1.0.0")
     runtime_settings = settings or Settings.from_env()
+    if rolling_runner is None:
+        from backend.rolling import run_rolling
+
+        rolling_runner = run_rolling
 
     @app.exception_handler(DomainValidationError)
     async def domain_validation_handler(request: Request, exc: DomainValidationError):
@@ -57,12 +61,9 @@ def create_app(
     async def forecast_run(payload: RunRequest) -> ForecastResponse:
         return forecast_runner(payload, runtime_settings)
 
-    if rolling_runner is not None:
-        from backend.schemas import RollingRequest, RollingResponse
-
-        @app.post("/api/forecast/rolling", response_model=RollingResponse)
-        async def forecast_rolling(payload: RollingRequest) -> RollingResponse:
-            return rolling_runner(payload, runtime_settings)
+    @app.post("/api/forecast/rolling", response_model=RollingResponse)
+    async def forecast_rolling(payload: RollingRequest) -> RollingResponse:
+        return rolling_runner(payload, runtime_settings)
 
     return app
 

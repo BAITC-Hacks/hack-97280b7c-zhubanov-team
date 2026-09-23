@@ -104,3 +104,41 @@ def test_run_endpoint_maps_weather_failure_to_service_unavailable():
         json={"issue_time_utc": "2026-01-31T12:00:00Z", "horizon_hours": 24},
     )
     assert response.status_code == 503
+
+
+def test_rolling_endpoint_returns_coverage_metadata():
+    def fake_rolling(request, settings):
+        return {
+            "runs": [_response(request.horizon_hours)],
+            "requested_dates": ["2026-01-31", "2026-02-01"],
+            "completed_dates": ["2026-01-31"],
+            "failed_dates": [{"issue_date": "2026-02-01", "detail": "weather outage"}],
+        }
+
+    client = TestClient(create_app(Settings(), rolling_runner=fake_rolling))
+    response = client.post(
+        "/api/forecast/rolling",
+        json={
+            "first_issue_date": "2026-01-31",
+            "last_issue_date": "2026-02-01",
+            "issue_hour_utc": 12,
+            "horizon_hours": 24,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["failed_dates"][0]["issue_date"] == "2026-02-01"
+
+
+def test_rolling_endpoint_rejects_more_than_31_dates():
+    client = TestClient(create_app(Settings()))
+    response = client.post(
+        "/api/forecast/rolling",
+        json={
+            "first_issue_date": "2026-01-01",
+            "last_issue_date": "2026-02-01",
+            "issue_hour_utc": 12,
+            "horizon_hours": 24,
+        },
+    )
+    assert response.status_code == 400
+    assert "31" in response.json()["detail"]
