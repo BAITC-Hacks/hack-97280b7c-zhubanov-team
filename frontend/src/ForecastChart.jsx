@@ -1,8 +1,8 @@
-import { useId } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { formatUtc } from './forecast.js';
 import { localizeMessage } from './messages.js';
 
-const CHART = { width: 760, height: 292, left: 58, right: 18, top: 20, bottom: 48 };
+const CHART = { left: 58, right: 18, top: 20, bottom: 48 };
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1];
 
 function timeLabel(value, includeDate = false) {
@@ -18,19 +18,40 @@ function timeLabel(value, includeDate = false) {
 
 export default function ForecastChart({ turbine, index }) {
   const gradientId = `forecast-area-${useId().replace(/:/g, '')}`;
+  const figureRef = useRef(null);
+  const [chartWidth, setChartWidth] = useState(548);
+  useLayoutEffect(() => {
+    const figure = figureRef.current;
+    if (!figure) return undefined;
+    const measure = () => {
+      const width = Math.round(figure.getBoundingClientRect().width);
+      if (width > 0) setChartWidth(width);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(figure);
+    return () => observer.disconnect();
+  }, []);
+  const chart = { ...CHART, width: chartWidth, height: Math.max(190, Math.round(chartWidth * 0.43)) };
   const points = turbine.hourly;
   const windValues = points.map((point) => point.forecast_wind_speed_ms).filter(Number.isFinite);
   const temperatureValues = points.map((point) => point.forecast_temperature_c).filter(Number.isFinite);
   const mean = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const meanWind = mean(windValues);
   const meanTemperature = mean(temperatureValues);
-  const plotWidth = CHART.width - CHART.left - CHART.right;
-  const plotHeight = CHART.height - CHART.top - CHART.bottom;
-  const x = (i) => CHART.left + (points.length <= 1 ? 0 : (i / (points.length - 1)) * plotWidth);
-  const y = (value) => CHART.top + (1 - value) * plotHeight;
+  const plotWidth = chart.width - chart.left - chart.right;
+  const plotHeight = chart.height - chart.top - chart.bottom;
+  const x = (i) => chart.left + (points.length <= 1 ? 0 : (i / (points.length - 1)) * plotWidth);
+  const y = (value) => chart.top + (1 - value) * plotHeight;
   const linePath = points.map((point, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(point.predicted_normalized_power).toFixed(1)}`).join(' ');
-  const areaPath = `${linePath} L ${x(points.length - 1).toFixed(1)} ${(CHART.top + plotHeight).toFixed(1)} L ${x(0).toFixed(1)} ${(CHART.top + plotHeight).toFixed(1)} Z`;
-  const tickIndices = [...new Set([0, Math.round((points.length - 1) / 3), Math.round(2 * (points.length - 1) / 3), points.length - 1])];
+  const areaPath = `${linePath} L ${x(points.length - 1).toFixed(1)} ${(chart.top + plotHeight).toFixed(1)} L ${x(0).toFixed(1)} ${(chart.top + plotHeight).toFixed(1)} Z`;
+  const tickIndices = chart.width < 460
+    ? [0, points.length - 1]
+    : [...new Set([0, Math.round((points.length - 1) / 3), Math.round(2 * (points.length - 1) / 3), points.length - 1])];
   const isFirst = index === 0;
 
   return (
@@ -52,8 +73,8 @@ export default function ForecastChart({ turbine, index }) {
       </div>
 
       <div className="chart-legend"><span className="legend-line" />Прогноз нормализованной мощности</div>
-      <figure className="chart-figure">
-        <svg className="forecast-svg" viewBox={`0 0 ${CHART.width} ${CHART.height}`} role="img" aria-labelledby={`${gradientId}-title ${gradientId}-description`}>
+      <figure className="chart-figure" ref={figureRef}>
+        <svg className="forecast-svg" viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-labelledby={`${gradientId}-title ${gradientId}-description`}>
           <title id={`${gradientId}-title`}>{`Прогноз нормализованной мощности: ${turbine.id}`}</title>
           <desc id={`${gradientId}-description`}>{`График от 0 до 1 для ${points.length} почасовых точек. Мощность и доступные погодные входы каждой точки показаны в подсказке.`}</desc>
           <defs>
@@ -66,8 +87,8 @@ export default function ForecastChart({ turbine, index }) {
             const tickY = y(tick);
             return (
               <g key={tick} className="chart-gridline">
-                <line x1={CHART.left} x2={CHART.width - CHART.right} y1={tickY} y2={tickY} />
-                <text x={CHART.left - 12} y={tickY + 4} textAnchor="end">{tick.toFixed(2)}</text>
+                <line x1={chart.left} x2={chart.width - chart.right} y1={tickY} y2={tickY} />
+                <text x={chart.left - 12} y={tickY + 4} textAnchor="end">{tick.toFixed(2)}</text>
               </g>
             );
           })}
@@ -92,13 +113,13 @@ export default function ForecastChart({ turbine, index }) {
           ))}
           {tickIndices.map((pointIndex, tickIndex) => (
             <g key={pointIndex} className="chart-x-tick">
-              <line x1={x(pointIndex)} x2={x(pointIndex)} y1={CHART.top + plotHeight} y2={CHART.top + plotHeight + 5} />
-              <text x={x(pointIndex)} y={CHART.height - 22} textAnchor={tickIndex === 0 ? 'start' : tickIndex === tickIndices.length - 1 ? 'end' : 'middle'}>
+              <line x1={x(pointIndex)} x2={x(pointIndex)} y1={chart.top + plotHeight} y2={chart.top + plotHeight + 5} />
+              <text x={x(pointIndex)} y={chart.height - 22} textAnchor={tickIndex === 0 ? 'start' : tickIndex === tickIndices.length - 1 ? 'end' : 'middle'}>
                 {tickIndex === 0 || tickIndex === tickIndices.length - 1 ? timeLabel(points[pointIndex].valid_time_utc, true) : timeLabel(points[pointIndex].valid_time_utc)}
               </text>
             </g>
           ))}
-          <text className="chart-axis-caption" x={CHART.left} y={CHART.height - 4}>Время прогноза — UTC</text>
+          <text className="chart-axis-caption" x={chart.left} y={chart.height - 4}>Время прогноза — UTC</text>
         </svg>
         <figcaption className="sr-only">Нормализованная мощность от 0 до 1. Наведите указатель на точки для просмотра значений.</figcaption>
       </figure>
