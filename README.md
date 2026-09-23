@@ -1,124 +1,220 @@
-# HackAlem — Wind Farm Forecast Agent
+# WindTrace AI — прогнозирование выработки ВЭС
 
-Official case: [Agentic AI for wind farm generation forecasting](https://docs.google.com/document/d/1Fn5IJoj87Fx7IAknG26zkfX8c0eq7feCujd0m66PCgY/edit). Our goal is hourly normalized-power forecasts for two wind turbines over a 24–48-hour horizon, issued repeatedly during February 2026 using weather forecasts available at each issue time.
+**Трек:** Энергетика. **Кейс:** [Agentic AI для прогнозирования выработки ВЭС](https://docs.google.com/document/d/1Fn5IJoj87Fx7IAknG26zkfX8c0eq7feCujd0m66PCgY/edit).
 
-The organizer supplied two 10-minute CSV histories ending January 31, 2026. They contain no February actual power, so February forecast error cannot yet be measured. See [data audit](docs/data-audit.md), [case map](docs/case-map.md), [API contract](docs/api-contract.md), and [team tasks](docs/team-tasks.md).
+## 1. Задача и пользователи
 
-The team reports that organizers did not define a timezone for CSV timestamps. All power-validation metrics are conditional on the chosen `source_timezone` scenario; see the two-scenario comparison in [model validation](docs/model-validation.md).
+WindTrace AI помогает оператору ветропарка оценить нормализованную мощность двух ветротурбин на следующие 24–48 часов и увидеть, как прогноз меняется при поступлении нового погодного выпуска. Источники, время данных и допущения видны рядом с результатом.
 
-The API and dashboard are integrated. Start from the instructions below or the Russian [installation guide](INSTALL.md). Team ownership is defined in `AGENTS.md`.
+Прогноз выражается в диапазоне **[0, 1]**, а не в МВт или МВт·ч. В исходных CSV нет фактической выработки за февраль и не определён часовой пояс. Поэтому февральскую точность мы не заявляем, а трактовку времени задаём явно.
 
-## Run the application on Windows
+## 2. Что реализовано
 
-Requires Python 3.12 and Node.js 22.12 or newer in the Node 22 series. From the repository root:
+- Чтение и аудит двух CSV организаторов: временные метки, повторы, шаг измерений и корректность значений.
+- Автоматическое получение архивных прогнозов ECMWF IFS через Open-Meteo Single Runs API с локальным кешем.
+- Обучение отдельной эмпирической кривой мощности для каждой турбины на данных не позже выбранного выпуска.
+- Почасовой прогноз на 24 или 48 часов и графики обеих турбин.
+- Ежедневные исторические выпуски с 31 января по 28 февраля 2026 года: 29 выпусков.
+- Сравнение соседних выпусков по общим часам, включая изменение прогнозного ветра и максимальный пересмотр мощности.
+- Окна низкой выработки для проверки оператором; автоматические команды управления не отправляются.
+- CSV текущего выпуска, паспорт JSON с источниками и допущениями, а также командный экспорт всего периода с контрольными суммами.
+- Русские пояснения, явная маркировка синтетического демо и блокировка выгрузки устаревшего результата.
+
+## 3. Основной сценарий
+
+1. Оператор выбирает время исторического выпуска по UTC и горизонт 24/48 часов.
+2. API проверяет локальные CSV, получает подходящий архивный погодный запуск либо читает его из кеша.
+3. Модель каждой турбины использует только доступную к выбранному времени историю, рассчитывает мощность и отмечает окна низкой выработки.
+4. Интерфейс показывает прогноз, источники и ограничения. При переходе на следующий день сравниваются совпадающие будущие часы.
+5. Оператор может сохранить результат и его метаданные.
+
+Это автоматизированный контур с фиксированной последовательностью действий. Codex использовался как AI-агент при разработке. В рабочем расчёте нет LLM-планировщика: прогноз выполняется Python-моделью, OpenAI/NVIDIA API и их ключи не требуются.
+
+## 4. Технологии и модель
+
+| Компонент | Реализация |
+|---|---|
+| API и проверка запросов | Python 3.12, FastAPI, Pydantic, Uvicorn |
+| Данные и модель | Pandas, NumPy, tzdata |
+| Интерфейс | React 19, Vite 8, SVG-графики |
+| Погода | Open-Meteo Single Runs API, ECMWF IFS |
+| Проверки | pytest, Node.js test runner, oxlint, Vite build |
+
+Модель строит медианную нормализованную мощность в интервалах скорости ветра шириной 0,5 м/с с интерполяцией и температурной поправкой как приближением изменения плотности воздуха. При прогнозировании используется ветер на высоте 100 м; высота датчика в CSV неизвестна. Это обучаемая базовая модель, а не полноценная физическая модель турбины. GPU не нужен.
+
+## 5. Архитектура
+
+```text
+React / Vite
+    -> POST /api/forecast/run или /api/forecast/rolling
+    -> FastAPI: проверка запроса и аудит CSV
+    -> forecast.service: получение архивной погоды + модель каждой турбины
+    -> анализ окон низкой выработки / сравнение выпусков
+    -> JSON -> графики, пояснения, CSV и паспорт результата
+```
+
+| Путь | Назначение |
+|---|---|
+| `backend/app.py`, `backend/schemas.py` | HTTP API и схемы |
+| `backend/data.py`, `backend/weather.py` | Аудит CSV, архивная погода и кеш |
+| `forecast/power_curve.py` | Обучение и прогноз нормализованной мощности |
+| `forecast/service.py`, `forecast/insights.py` | Выпуски, пересчёт и операторский анализ |
+| `forecast/validation.py`, `forecast/export.py` | Январская диагностика и экспорт периода |
+| `frontend/` | Интерфейс, проверка ответа и выгрузка текущего выпуска |
+| `tests/`, `frontend/src/*.test.js` | Автоматические проверки |
+
+Контракт: [docs/api-contract.md](docs/api-contract.md). Подробнее о передаче данных: [ML handoff](docs/ml-handoff.md). Владение компонентами команды: [AGENTS.md](AGENTS.md).
+
+## 6. Данные и внешние сервисы
+
+Скачайте выданные организаторами файлы и разместите их локально:
+
+| Файл организаторов | Путь в проекте |
+|---|---|
+| [Турбина 1](https://drive.google.com/file/d/1hubNF3tgc7DbgXxHLpIF6zIBHtvMyzLX/view) | `data/input/turbine-1.csv` |
+| [Турбина 2](https://drive.google.com/file/d/1_WTrYhZ3-71A9IpkBb9RHPN7ncVaupBk/view) | `data/input/turbine-2.csv` |
+
+Если Drive запрашивает доступ, его предоставляет организатор. CSV не включены в Git: без них доступны синтетическое демо и автоматические тесты, но не расчёт по данным организаторов. История содержит десятиминутные измерения и заканчивается 31 января 2026 года, 23:50 по неопределённому времени CSV.
+
+Погодный клиент обращается к `single-runs-api.open-meteo.com` за прогнозами, а не за фактической погодой или реанализом. Выбирается запуск, инициализированный минимум за **12 часов** до времени выпуска. Это допущение о запасе доступности, а не подтверждение фактического времени публикации. В ответ сохраняются источник, модель, запуск и время действия прогноза.
+
+Первое получение отсутствующих погодных запусков требует интернета; ответы кешируются в `data/cache/weather/`. Полный период требует больше запросов, чем один выпуск. Ошибки или ограничения внешнего сервиса могут помешать расчёту.
+
+Исходные CSV, кеш, `.env`, ключи и `outputs/` исключены из Git. Ключи нельзя публиковать. Необязательные подготовительные ноутбуки находятся в [notebooks/legacy](notebooks/legacy/README.md); они не используются для рабочего прогноза.
+
+## 7. Установка и запуск
+
+Проверенный локальный вариант: **Windows, Python 3.12, Node.js 22.12+ из ветки 22**. Все команды ниже выполняются в PowerShell из корня репозитория.
 
 ```powershell
+git clone https://github.com/BAITC-Hacks/hack-97280b7c-zhubanov-team.git
+cd hack-97280b7c-zhubanov-team
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 npm --prefix frontend ci
 ```
 
-Place the organizer CSVs in `data/input/` as described below, then run:
+Поместите два CSV по путям из раздела выше, затем:
 
 ```powershell
 .\start_hackalem.ps1 -SourceTimezone UTC
 ```
 
-Open `http://127.0.0.1:5173`, choose **Backend API**, and click **Пересчитать прогноз**. The dashboard starts with clearly labeled synthetic demo data until an API forecast succeeds. Use **Следующий** to compare successive daily issues. The launcher checks local prerequisites, starts FastAPI, waits for its health endpoint, and runs Vite with its API proxy. Stop with Ctrl+C. Backend logs are under ignored `outputs/`.
+Откройте **http://127.0.0.1:5173**, выберите **Backend API** и нажмите **«Пересчитать прогноз»**. Пока успешного запроса нет, интерфейс показывает явно помеченное синтетическое демо.
 
-`UTC` is an explicit scenario, not an organizer-confirmed timezone. To use the other documented scenario, pass `-SourceTimezone Asia/Almaty`. Use `-DataDir <directory>` for CSVs outside the checkout or `-CheckOnly` to check prerequisites without starting services. No OpenAI or NVIDIA key is required for forecasting.
+Запускатор проверяет зависимости и файлы, запускает API на порту 8000 и Vite с локальным прокси на порту 5173. Остановка — Ctrl+C; в командном окне может потребоваться подтвердить завершение npm. Логи API: `outputs/backend.stdout.log` и `outputs/backend.stderr.log`.
 
-Optional exploratory notebooks are archived under `notebooks/legacy/`; see `requirements-notebooks.txt` and `start_notebook.ps1`. Their generic baselines are disabled and are not the wind-forecast evaluation.
-
-After a successful API calculation, the dashboard offers **Скачать CSV** for the current issue and **Паспорт JSON** for its forecast, provenance, limitations and available recalculation comparison. Demo, pending, failed and stale selections cannot be exported. If the browser blocks saving, expand **Показать содержимое файла** to copy the generated text. The **Как получен прогноз** section summarizes returned metadata; it is not a live execution log. Recognized backend explanations are shown in Russian; unknown warnings remain visible unchanged. Run `npm --prefix frontend test` for the export and localization checks.
-
-## Data setup
-
-Download the private organizer files into ignored local paths:
-
-- [Turbine 1](https://drive.google.com/file/d/1hubNF3tgc7DbgXxHLpIF6zIBHtvMyzLX/view) → `data/input/turbine-1.csv`
-- [Turbine 2](https://drive.google.com/file/d/1_WTrYhZ3-71A9IpkBb9RHPN7ncVaupBk/view) → `data/input/turbine-2.csv`
-
-Never commit these source files.
-
-## Archived weather starter
-
-The first working component fetches an archived ECMWF IFS forecast for a simulated issue time and one turbine. It uses only a model run initialized at least 12 hours earlier, selects 24 or 48 future hourly values, and saves raw responses in ignored `data/cache/weather/` for reproducibility. The 12-hour buffer is a conservative availability assumption, not verified publication metadata.
+Полезные варианты:
 
 ```powershell
-python -m backend.weather 2026-01-31T12:00:00Z turbine-1 --hours 48
-python -m unittest discover -s tests -v
+# Проверить предпосылки, не запуская серверы:
+.\start_hackalem.ps1 -SourceTimezone UTC -CheckOnly
+# Другой сценарий неопределённого времени CSV:
+.\start_hackalem.ps1 -SourceTimezone Asia/Almaty
+# Своя папка CSV или свободные порты:
+.\start_hackalem.ps1 -DataDir 'C:\path\to\csv' -ApiPort 8001 -UiPort 5174
 ```
 
-The archived weather client, rolling forecast module, API and dashboard are integrated.
+`UTC` и `Asia/Almaty` — сценарии, а не подтверждённый часовой пояс. Не запускайте второй экземпляр на уже занятом порту. Дополнительная инструкция: [INSTALL.md](INSTALL.md).
 
-The trained per-turbine power model, conditional January diagnostic, and verified 29-issue rolling run are described in [model validation](docs/model-validation.md).
-Backend integration instructions are in [ML handoff](docs/ml-handoff.md).
-The [judge-facing demo loop](docs/demo-differentiator.md) explains the advisory low-generation windows and auditable recalculation comparison.
-
-## Backend API
-
-Install dependencies and start the API from the repository root:
+Для просмотра только синтетического интерфейса без CSV и API:
 
 ```powershell
-python -m pip install -r requirements.txt
-$env:SOURCE_TIMEZONE = "Asia/Almaty"
-$env:DATA_DIR = "data/input"
-python -m uvicorn backend.app:app --reload
+npm --prefix frontend run dev -- --host 127.0.0.1
 ```
 
-Check readiness:
+### Ручной запуск API
+
+```powershell
+$env:SOURCE_TIMEZONE = 'UTC'
+$env:DATA_DIR = 'data/input'
+.\.venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+```
+
+В другом терминале из корня проекта запустите `npm --prefix frontend run dev -- --host 127.0.0.1`. По умолчанию Vite перенаправляет `/api` на порт 8000. Кросс-доменный production-деплой требует отдельной настройки; этот запуск предназначен для локальной проверки.
+
+## 8. Как жюри проверить решение
+
+1. Запустите приложение с CSV, выберите **Backend API**, выпуск **31.01.2026 12:00 UTC**, горизонт **48 ч**.
+2. Нажмите **«Пересчитать прогноз»**. Ожидаются две серии по 48 точек в [0, 1], источник Open-Meteo и погодная модель `ecmwf_ifs`.
+3. Проверьте блок **«Как получен прогноз»**: он показывает метаданные результата, а не имитацию живого журнала выполнения.
+4. Нажмите **«Следующий»**. Для 1 февраля появится новый выпуск и сравнение по 24 общим часам каждой турбины. Сравнение не является оценкой точности.
+5. Нажмите **«Скачать CSV»** или **«Паспорт JSON»**. CSV одного 48-часового выпуска содержит 96 строк. Если встроенный браузер не сохраняет файл, раскройте **«Показать содержимое файла»** и скопируйте текст.
+6. Смените горизонт на 24 ч: до пересчёта выгрузка блокируется. После успешного пересчёта каждая турбина должна иметь 24 точки.
+
+Можно проверить API без интерфейса в отдельном терминале:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-Run a 48-hour forecast for both turbines:
-
-```powershell
 Invoke-RestMethod http://127.0.0.1:8000/api/forecast/run `
-  -Method Post -ContentType "application/json" `
+  -Method Post -ContentType 'application/json' `
   -Body '{"issue_time_utc":"2026-01-31T12:00:00Z","horizon_hours":48}'
 ```
 
-Run the daily sequence and recalculation comparisons:
+`/health` подтверждает работу процесса; наличие и качество CSV проверяются при запросе прогноза.
+
+### Полный период и выгрузка
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8000/api/forecast/rolling `
-  -Method Post -ContentType "application/json" `
-  -Body '{"first_issue_date":"2026-01-31","last_issue_date":"2026-02-28","issue_hour_utc":12,"horizon_hours":48}'
+.\.venv\Scripts\python.exe -m forecast.service --source-timezone UTC --output outputs/rolling-utc.json
+.\.venv\Scripts\python.exe -m forecast.export --input outputs/rolling-utc.json --output-dir outputs/monthly-utc
 ```
 
-The API keeps the selected CSV timezone visible as a scenario warning. February actual power was not supplied, so the rolling response reports forecasts and recalculation evidence, not February MAE.
+Ожидаются **29 выпусков, 2 784 строки прогноза и 28 сравнений соседних выпусков**. Горизонты перекрываются: это не 2 784 различных календарных часа. Экспорт создаёт `forecasts.csv` и `manifest.json` с метаданными и SHA-256. Каталог экспорта должен быть новым. Сам экспорт не обучает модель и не обращается к сети; поле `exporter_git_revision` относится к версии экспортера, не обязательно к генератору исходного JSON.
 
-## Export a reproducible monthly result
+Для сценария `Asia/Almaty` повторите генерацию с другим `--source-timezone` и отдельными именами файлов/папок. Данные за февраль в результате — прогнозы, не фактическая выработка.
 
-With the virtual environment active and the CSVs under `data/input/`, generate the daily sequence and export it:
+### Автоматические проверки
 
 ```powershell
-python -m forecast.service --source-timezone UTC --output outputs/rolling-utc.json
-python -m forecast.export --input outputs/rolling-utc.json --output-dir outputs/monthly-utc
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q
+npm --prefix frontend test
+npm --prefix frontend run lint
+npm --prefix frontend run build
 ```
 
-The default period is January 31–February 28, 2026: 29 issues, 48 hours and two turbines per issue, totaling 2,784 forecast rows. These include overlapping horizons; they are not 2,784 distinct calendar hours. The first generation needs internet access for missing archived weather runs; cached runs are reused. Export itself performs no training or network requests.
+Проверки используют синтетические данные, не требуют закрытых CSV или API-ключей. Интеграционный тест проверяет 29 выпусков через API и модель. Последняя локальная проверка кода перед подготовкой этого README: **28 Python-тестов и 11 frontend-тестов прошли**, lint и сборка успешны; отдельно проверен интерфейс с CSV организаторов и кешированной архивной погодой.
 
-The bundle contains `forecasts.csv` and `manifest.json` with source/model, issue and valid times, training cutoff, latest training observation, timezone scenario and SHA-256 hashes. The exporter checks daily coverage, hourly continuity, numeric bounds and declared temporal provenance before publishing the bundle. Choose a new output directory for each export. `exporter_git_revision` identifies the exporter checkout, not the model that originally generated the input.
+Workflow GitHub Actions настроен на те же проверки, но на 23.09.2026 задания не запускались из-за блокировки оплаты аккаунта владельца репозитория. Это не успешный CI-прогон; восстановление требует действий администратора организации.
 
-For timezone sensitivity, repeat with `--source-timezone Asia/Almaty` and separate input/output names. These are scenario forecasts, not verified February accuracy. The weather availability buffer remains an assumption, not proof of actual publication time. Generated bundles stay in ignored `outputs/`; share them explicitly when submitting the project.
+## 9. Проверка модели
 
-Before forecasting, the API checks both input files for invalid timestamps,
-duplicate pre-cutoff rows, ten-minute cadence and invalid measurements.
-Hourly aggregation keeps incomplete hours as missing (six samples are required);
-it never fills gaps. The ML module continues to train on its original ten-minute
-observations. Inspect data coverage with:
+[Отчёт проверки модели](docs/model-validation.md) содержит исследовательскую январскую диагностику по 10 временам выпуска и 960 часам двух турбин. Метрика MAE измеряется в нормализованной мощности:
+
+| Сценарий времени CSV | Модель: MAE | Простой прогноз по последним 6 часам: MAE |
+|---|---:|---:|
+| Asia/Almaty | 0,173 | 0,337 |
+| UTC | 0,206 | 0,295 |
+
+Это зависимые от допущения результаты разработки, а не независимый benchmark или официальный балл. Выбирать часовой пояс по меньшей ошибке нельзя. Воспроизведение требует CSV и архивной погоды:
 
 ```powershell
-python -m backend.data --cutoff 2026-01-31T12:00:00Z --source-timezone Asia/Almaty
+.\.venv\Scripts\python.exe -m forecast.validation --source-timezone UTC --schedule broad
+.\.venv\Scripts\python.exe -m forecast.validation --source-timezone Asia/Almaty --schedule broad
 ```
 
-Run all tests with `python -m pip install -r requirements-dev.txt` followed by
-`python -m pytest`. The integration test exercises 29 issues through the actual
-API and model using explicitly synthetic CSV and weather inputs. It does not
-measure real forecast accuracy or verify external weather availability.
+## 10. Ограничения
 
-The GitHub workflow runs these synthetic tests and the frontend lint/build without organizer CSVs or API keys. Local checks with real CSVs and cached archived weather complement this workflow; they are not a measurement of February accuracy.
+- Февральских фактических значений мощности нет: февральская ошибка не измерена.
+- Временная зона CSV неизвестна. Неоднозначные локальные времена исключаются; подробности — [аудит данных](docs/data-audit.md).
+- Фактическое время публикации архивной погоды не проверено; используется 12-часовой запас относительно инициализации модели.
+- Высота датчика ветра, давление и номинальные мощности турбин неизвестны. Ветер 100 м и температурная поправка — приближения; МВт/МВт·ч и денежный эффект не рассчитываются.
+- Январские даты использовались при разработке. Диагностика не подтверждает качество на неизвестных данных.
+- Интерфейс показывает точечный прогноз; калиброванные интервалы неопределённости не реализованы.
+- Низкая выработка и эквивалентные часы полной нагрузки — информационные показатели сценария, а не команды диспетчеризации.
+- Нет автономного управления турбинами, фонового промышленного планировщика, учётных записей и промышленного мониторинга.
+- CSV и погодный кеш остаются локально; для проверки другим человеком их нужно подготовить отдельно.
+
+## 11. Развёрнутая версия и материалы
+
+Публичная развёрнутая версия в репозитории не указана. `http://127.0.0.1:5173` — адрес локального запуска, не ссылка для удалённого доступа жюри.
+
+- [Соответствие кейсу](docs/case-map.md)
+- [Данные и аудит](docs/data-audit.md)
+- [Модель и диагностика](docs/model-validation.md)
+- [Контракт API](docs/api-contract.md)
+- [Сценарий демонстрации пересчёта](docs/demo-differentiator.md)
+- [Инструкция организаторов по сдаче](https://drive.google.com/file/d/105Rnhzg3Q5tKjfGZIddRqY13kmq_w4r_/view)
+
+По инструкции организаторов итоговый код отправляется в выданный репозиторий команды, затем на странице выбранного кейса нажимается **«Сдать решение»** и заполняются название и описание. Обновлять решение можно до дедлайна хакатона. Обновление GitHub само по себе не подтверждает отправку формы на платформе.
