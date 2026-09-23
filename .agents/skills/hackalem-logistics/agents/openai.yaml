@@ -1,0 +1,4 @@
+interface:
+  display_name: "HackAlem Logistics"
+  short_description: "Analyze the logistics case and shape a feasible MVP"
+  default_prompt: "Analyze the official logistics case, extract mandatory requirements, and propose a verifiable agentic AI MVP for a five-hour build."

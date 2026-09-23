@@ -11,3 +11,11 @@ data/input/
 data/cache/
 uploads/
 *.pyc
+.ipynb_checkpoints/
+.ipython/
+.mplconfig/
+.jupyter/
+.jupyter-data/
+.jupyter-runtime/
+outputs/*
+.sync-local-backup/

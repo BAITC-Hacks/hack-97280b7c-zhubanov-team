@@ -28,3 +28,7 @@ python -m unittest discover -s tests -v
 The weather client is ready. API, UI, rolling February forecasts, and end-to-end validation remain in progress.
 
 The first trained per-turbine power model and its conditional January diagnostic are described in [model validation](docs/model-validation.md). API, UI and full rolling February forecast are still in progress.
+
+## Local laptop setup
+
+This workspace also has a local Jupyter environment and a starter React/Vite shell. Start the notebook with `.\start_hackalem.ps1`; start the frontend shell with `npm --prefix frontend run dev`. The starter notebook is a general scratchpad, not the wind-forecast implementation. Keep the case implementation aligned with `docs/api-contract.md` and the assigned team ownership.
