@@ -1,0 +1,9 @@
+# Optional legacy notebooks only; the dashboard/API do not need these packages.
+-r requirements.txt
+matplotlib>=3.9,<4
+python-dotenv>=1.0,<2
+scikit-learn>=1.5,<2
+pyarrow>=17
+openai>=1.50,<3
+jupyterlab>=4.2,<5
+ipykernel>=6.29,<7

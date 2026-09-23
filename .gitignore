@@ -13,3 +13,12 @@ uploads/
 *.pyc
 .agents/
 .superpowers/
+.ipynb_checkpoints/
+.ipython/
+.mplconfig/
+.jupyter/
+.jupyter-data/
+.jupyter-runtime/
+outputs/
+.sync-local-backup/
+.playwright-cli/
