@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from pydantic import ValidationError
+
 from backend.config import Settings
 from backend.schemas import ForecastResponse, RunRequest
 from backend.weather import LOCATIONS, fetch_archived_forecast, parse_utc
@@ -116,6 +118,10 @@ def run_forecast(
             raise
         except (KeyError, TypeError, ValueError) as exc:
             raise ModelDataError(f"Could not build forecast for {turbine_id}: {exc}") from exc
+        if len(forecast.get("hourly", ())) != request.horizon_hours:
+            raise ModelDataError(
+                f"Expected {request.horizon_hours} hourly predictions for {turbine_id}"
+            )
         turbine_results.append(forecast)
 
     first_weather = weather_results[0]
@@ -147,12 +153,15 @@ def run_forecast(
             }
         )
 
-    return ForecastResponse(
-        run_id=identifier,
-        issue_time_utc=issue.isoformat().replace("+00:00", "Z"),
-        training_cutoff_utc=cutoff,
-        weather=provenance,
-        turbines=normalized_turbines,
-        analysis=analysis,
-        warnings=warnings,
-    )
+    try:
+        return ForecastResponse(
+            run_id=identifier,
+            issue_time_utc=issue.isoformat().replace("+00:00", "Z"),
+            training_cutoff_utc=cutoff,
+            weather=provenance,
+            turbines=normalized_turbines,
+            analysis=analysis,
+            warnings=warnings,
+        )
+    except ValidationError as exc:
+        raise ModelDataError(f"Forecast result failed contract validation: {exc}") from exc

@@ -7,6 +7,7 @@ from backend.config import Settings
 from backend.schemas import RunRequest
 from backend.service import (
     DomainValidationError,
+    ModelDataError,
     MissingDataError,
     parse_issue_time,
     run_forecast,
@@ -91,4 +92,28 @@ def test_run_forecast_fails_before_partial_response_when_csv_missing(tmp_path: P
             Settings(data_dir=tmp_path),
             weather_fetcher=lambda *args: {},
             predictor=lambda *args, **kwargs: {},
+        )
+
+
+def test_run_forecast_rejects_prediction_with_wrong_horizon(tmp_path: Path):
+    for turbine_id in ("turbine-1", "turbine-2"):
+        (tmp_path / f"{turbine_id}.csv").write_text("fixture", encoding="utf-8")
+
+    def fake_weather(issue_time, turbine_id, horizon_hours, cache_dir):
+        return {
+            "weather_source": "test",
+            "weather_model": "test",
+            "weather_run_utc": "2026-01-31T00:00:00Z",
+            "hourly": [{"valid_time_utc": "2026-01-31T13:00:00Z", "wind_speed_100m": 5.0}],
+        }
+
+    def short_predict(*args, **kwargs):
+        return {"id": "turbine-1", "hourly": []}
+
+    with pytest.raises(ModelDataError, match="Expected 24 hourly predictions"):
+        run_forecast(
+            RunRequest(issue_time_utc="2026-01-31T12:00:00Z", horizon_hours=24),
+            Settings(data_dir=tmp_path),
+            weather_fetcher=fake_weather,
+            predictor=short_predict,
         )
