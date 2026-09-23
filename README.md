@@ -28,3 +28,4 @@ python -m unittest discover -s tests -v
 The archived weather client and the rolling forecast module are ready. API and UI integration remain in progress.
 
 The trained per-turbine power model, conditional January diagnostic, and verified 29-issue rolling run are described in [model validation](docs/model-validation.md).
+Backend integration instructions are in [ML handoff](docs/ml-handoff.md).
