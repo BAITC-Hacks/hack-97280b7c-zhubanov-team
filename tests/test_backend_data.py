@@ -39,3 +39,24 @@ def test_timezone_changes_cutoff_selection(tmp_path):
     _, local = load_hourly(path, "2026-01-01T00:50:00Z", "Asia/Almaty")
     assert utc["rows_before_cutoff"] == 6
     assert local["rows_before_cutoff"] == 36
+
+
+def test_ambiguous_local_hour_is_omitted_without_rejecting_csv(tmp_path):
+    path = tmp_path / "turbine.csv"
+    times = [
+        datetime(2024, 2, 29, hour, minute)
+        for hour in (22, 23)
+        for minute in range(0, 60, 10)
+    ] + [datetime(2024, 3, 1, 0, minute) for minute in range(0, 60, 10)]
+    path.write_text(
+        "ID,time,wind,power,temp\n"
+        + "\n".join(f"{i},{time},6,0.5,5" for i, time in enumerate(times)),
+        encoding="utf-8",
+    )
+
+    hourly, report = load_hourly(path, "2024-03-01T00:00:00Z", "Asia/Almaty")
+
+    assert report["unresolved_source_timestamps_dropped"] == 6
+    assert report["rows_before_cutoff"] == 12
+    assert report["complete_hours"] == 2
+    assert hourly.power.notna().sum() == 2

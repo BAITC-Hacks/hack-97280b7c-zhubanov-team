@@ -14,14 +14,21 @@ def load_hourly(path, cutoff_utc, source_timezone):
     raw = pd.read_csv(path)
     if len(raw.columns) != 5:
         raise ValueError(f"{Path(path).name}: expected five CSV columns")
-    times = pd.to_datetime(raw.iloc[:, 1], errors="coerce")
-    times = times.dt.tz_localize(source_timezone, ambiguous="NaT", nonexistent="NaT").dt.tz_convert("UTC")
-    if times.isna().any():
-        raise ValueError(f"{Path(path).name}: invalid or ambiguous timestamps")
+    source_times = pd.to_datetime(raw.iloc[:, 1], errors="coerce")
+    if source_times.isna().any():
+        raise ValueError(f"{Path(path).name}: invalid timestamps")
+    times = source_times.dt.tz_localize(
+        source_timezone, ambiguous="NaT", nonexistent="NaT"
+    ).dt.tz_convert("UTC")
+    # A local clock can repeat or skip an hour at a timezone transition. Its
+    # UTC offset is unknowable from a naive CSV timestamp, so omit those rows.
+    unresolved_times = int(times.isna().sum())
     rows = pd.DataFrame({"time": times})
     for name, position in (("wind", 2), ("power", 3), ("temperature", 4)):
         rows[name] = pd.to_numeric(raw.iloc[:, position], errors="coerce")
-    rows = rows.loc[rows.time <= pd.Timestamp(parse_utc(cutoff_utc))].sort_values("time")
+    rows = rows.loc[
+        rows.time.notna() & (rows.time <= pd.Timestamp(parse_utc(cutoff_utc)))
+    ].sort_values("time")
     if rows.empty:
         raise ValueError(f"{Path(path).name}: no observations before cutoff")
     if rows.time.duplicated().any():
@@ -39,6 +46,7 @@ def load_hourly(path, cutoff_utc, source_timezone):
     # Keep incomplete hours visible, but do not present their means as complete observations.
     hourly.loc[hourly.samples < 6, ["wind", "power", "temperature"]] = np.nan
     report = {"source_timezone": source_timezone, "cutoff_utc": cutoff_utc,
+              "unresolved_source_timestamps_dropped": unresolved_times,
               "rows_before_cutoff": len(rows),
               "gaps_over_ten_minutes": int((intervals > pd.Timedelta(minutes=10)).sum()),
               "incomplete_hours": int((hourly.samples < 6).sum()),
