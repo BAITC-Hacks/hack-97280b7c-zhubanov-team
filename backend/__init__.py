@@ -1,0 +1,1 @@
+"""Wind forecasting backend components."""
