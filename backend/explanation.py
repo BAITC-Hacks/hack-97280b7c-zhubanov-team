@@ -1,4 +1,4 @@
-"""Grounded forecast explanation with an optional NVIDIA language model."""
+"""Grounded forecast explanation with optional OpenAI or NVIDIA language models."""
 
 from __future__ import annotations
 
@@ -11,12 +11,14 @@ from urllib.request import Request, urlopen
 
 NVIDIA_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions"
 NVIDIA_MODEL = "meta/llama-3.3-70b-instruct"
+OPENAI_ENDPOINT = "https://api.openai.com/v1/responses"
+OPENAI_MODEL = "gpt-4.1-mini"
 MAX_RESPONSE_BYTES = 32_768
 
 
-def _nvidia_key() -> str | None:
+def _provider_key(key_name: str) -> str | None:
     """Read a server-only secret; never return or log it to the browser."""
-    value = os.getenv("NVIDIA_API_KEY", "").strip()
+    value = os.getenv(key_name, "").strip()
     if value:
         return value
     dotenv = Path(__file__).resolve().parents[1] / ".env"
@@ -24,7 +26,7 @@ def _nvidia_key() -> str | None:
         return None
     for line in dotenv.read_text(encoding="utf-8-sig").splitlines():
         name, delimiter, raw = line.partition("=")
-        if delimiter and name.strip() == "NVIDIA_API_KEY":
+        if delimiter and name.strip() == key_name:
             value = raw.strip().strip('"\'')
             return value or None
     return None
@@ -118,19 +120,22 @@ def local_explanation(evidence: dict) -> str:
     return "\n\n".join([lead, *turbine_lines, origin, caveat])
 
 
-def _nvidia_chat(evidence: dict, key: str) -> str:
-    system = (
+def _system_prompt() -> str:
+    return (
         "Ты объясняешь прогноз ветроэлектростанции по предоставленным фактам. Ответь по-русски "
         "короткими абзацами: ожидаемая выработка двух турбин, почему использована эта погода "
         "и история, что изменилось после предыдущего выпуска, что проверить оператору, ограничения. "
         "Используй только JSON фактов. Не придумывай наблюдения, причинно-следственные связи, "
         "точность за февраль, МВт/МВт·ч, экономический эффект или время публикации погоды. "
         "Если сравнения нет, скажи об этом. В конце явно назови допущения о часовом поясе "
-        "и 12-часовом буфере. Не давай команды управления турбинами."
+        "и указанном буфере доступности. Не давай команды управления турбинами."
     )
+
+
+def _nvidia_chat(evidence: dict, key: str) -> str:
     body = json.dumps({
         "model": NVIDIA_MODEL,
-        "messages": [{"role": "system", "content": system},
+        "messages": [{"role": "system", "content": _system_prompt()},
                      {"role": "user", "content": json.dumps(evidence, ensure_ascii=False)}],
         "temperature": 0.2, "max_tokens": 700, "stream": False,
     }, ensure_ascii=False).encode("utf-8")
@@ -148,14 +153,54 @@ def _nvidia_chat(evidence: dict, key: str) -> str:
     return content.strip()[:5000]
 
 
+def _openai_chat(evidence: dict, key: str) -> str:
+    body = json.dumps({
+        "model": OPENAI_MODEL,
+        "instructions": _system_prompt(),
+        "input": json.dumps(evidence, ensure_ascii=False),
+        "max_output_tokens": 700,
+        "store": False,
+    }, ensure_ascii=False).encode("utf-8")
+    request = Request(OPENAI_ENDPOINT, data=body, headers={
+        "Authorization": f"Bearer {key}", "Content-Type": "application/json", "Accept": "application/json",
+    }, method="POST")
+    with urlopen(request, timeout=25) as response:
+        raw = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise ValueError("OpenAI response exceeded size limit")
+    result = json.loads(raw)
+    if result.get("status") not in (None, "completed"):
+        raise ValueError("OpenAI response did not complete")
+    parts = [content.get("text", "")
+             for item in result.get("output", []) if item.get("type") == "message"
+             for content in item.get("content", []) if content.get("type") == "output_text"]
+    text = "\n".join(part for part in parts if isinstance(part, str) and part.strip()).strip()
+    if not text:
+        raise ValueError("OpenAI returned an empty explanation")
+    return text[:5000]
+
+
 def explain_forecast(forecast: dict, previous: dict | None = None, *,
-                     key: str | None = None, model_call=None) -> dict:
+                     key: str | None = None, model_call=None,
+                     openai_key: str | None = None, openai_model_call=None) -> dict:
     facts = build_evidence(forecast, previous)
     fallback = local_explanation(facts)
-    secret = key if key is not None else _nvidia_key()
+    # Explicit legacy NVIDIA test overrides do not discover a second provider.
+    openai_secret = openai_key if openai_key is not None else (
+        _provider_key("OPENAI_API_KEY") if key is None else None)
+    if openai_secret:
+        try:
+            generated = (openai_model_call or _openai_chat)(facts, openai_secret)
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            return {"mode": "local", "text": fallback, "evidence": facts,
+                    "notice": "Сервис OpenAI недоступен; показано локальное объяснение по данным прогноза."}
+        return {"mode": "ai", "text": generated, "evidence": facts,
+                "provider": "OpenAI", "model": OPENAI_MODEL,
+                "notice": "Текст ИИ основан на указанных фактах. Сверяйте выводы с графиками и паспортом прогноза."}
+    secret = key if key is not None else _provider_key("NVIDIA_API_KEY")
     if not secret:
         return {"mode": "local", "text": fallback, "evidence": facts,
-                "notice": "Ключ NVIDIA не настроен; показано локальное объяснение по данным прогноза."}
+                "notice": "Ключ OpenAI или NVIDIA не настроен; показано локальное объяснение по данным прогноза."}
     try:
         generated = (model_call or _nvidia_chat)(facts, secret)
     except (OSError, ValueError, KeyError, IndexError, TypeError):

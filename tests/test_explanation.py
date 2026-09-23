@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.config import Settings
-from backend.explanation import _nvidia_chat, build_evidence, explain_forecast
+from backend.explanation import _nvidia_chat, _openai_chat, build_evidence, explain_forecast
 
 
 def fixture_forecast(issue_text: str, power: float) -> dict:
@@ -68,6 +68,48 @@ def test_ai_response_and_failed_provider_have_explicit_distinct_modes():
     assert local["mode"] == "local"
     assert "temporary upstream outage" not in str(local)
     assert "Сервис ИИ недоступен" in local["notice"]
+
+
+def test_openai_takes_priority_and_falls_back_without_leaking_secret():
+    run = fixture_forecast("2026-01-31T12:00:00Z", 0.3)
+    with patch("backend.explanation._provider_key", side_effect=lambda name: {
+            "OPENAI_API_KEY": "openai-test-secret", "NVIDIA_API_KEY": "nvidia-test-secret"}[name]):
+        result = explain_forecast(run, openai_model_call=lambda facts, key: "Факты подтверждены.")
+        assert result["mode"] == "ai" and result["provider"] == "OpenAI"
+        assert result["model"] == "gpt-4.1-mini"
+        assert "openai-test-secret" not in str(result)
+
+        def unavailable(facts, key):
+            raise OSError("private upstream detail")
+
+        local = explain_forecast(run, openai_model_call=unavailable)
+        assert local["mode"] == "local"
+        assert "private upstream detail" not in str(local)
+        assert "OpenAI" in local["notice"]
+
+
+def test_openai_wire_request_uses_responses_and_no_storage():
+    run = fixture_forecast("2026-01-31T12:00:00Z", 0.3)
+    outbound = []
+
+    def fake_urlopen(request, timeout):
+        outbound.append((request, timeout))
+        return BytesIO(json.dumps({"status": "completed", "output": [
+            {"type": "reasoning", "content": []},
+            {"type": "message", "content": [{"type": "output_text", "text": "Объяснение по фактам."}]},
+        ]}).encode())
+
+    with patch("backend.explanation.urlopen", side_effect=fake_urlopen):
+        text = _openai_chat(build_evidence(run), "secret-for-test")
+    assert text == "Объяснение по фактам."
+    request, timeout = outbound[0]
+    assert request.full_url == "https://api.openai.com/v1/responses"
+    assert request.get_method() == "POST" and timeout <= 30
+    assert request.get_header("Authorization") == "Bearer secret-for-test"
+    body = json.loads(request.data)
+    assert body["model"] == "gpt-4.1-mini" and body["store"] is False
+    assert "hourly" not in body["input"]
+    assert "secret-for-test" not in request.data.decode()
 
 
 def test_api_recomputes_server_facts_and_rejects_invalid_previous_issue():
