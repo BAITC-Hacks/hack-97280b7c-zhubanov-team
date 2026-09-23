@@ -14,6 +14,17 @@ from backend.weather import LOCATIONS, parse_utc
 BIN_WIDTH_MS = 0.5
 MIN_BIN_SAMPLES = 20
 WIND_FEATURE = "wind_speed_100m"  # Hub height is unknown; validate this choice.
+REFERENCE_TEMPERATURE_K = 288.15  # 15 °C; relative density proxy, pressure unavailable.
+
+
+def density_adjusted_speed(wind_speed_ms: float, temperature_c: float) -> float:
+    speed = float(wind_speed_ms)
+    temperature = float(temperature_c)
+    if not np.isfinite(speed) or speed < 0:
+        raise ValueError("Wind speed must be finite and nonnegative")
+    if not np.isfinite(temperature) or not -100 <= temperature <= 80:
+        raise ValueError("Temperature is outside the supported physical range")
+    return speed * (REFERENCE_TEMPERATURE_K / (273.15 + temperature)) ** (1 / 3)
 
 
 @dataclass(frozen=True)
@@ -25,11 +36,9 @@ class PowerCurve:
     latest_training_time_utc: str
     source_timezone: str
 
-    def estimate(self, wind_speed_ms: float) -> float:
-        speed = float(wind_speed_ms)
-        if not np.isfinite(speed) or speed < 0:
-            raise ValueError("Forecast wind speed must be finite and nonnegative")
-        estimate = np.interp(speed, self.bin_centers_ms, self.median_power)
+    def estimate(self, wind_speed_ms: float, temperature_c: float) -> float:
+        adjusted_speed = density_adjusted_speed(wind_speed_ms, temperature_c)
+        estimate = np.interp(adjusted_speed, self.bin_centers_ms, self.median_power)
         return float(np.clip(estimate, 0.0, 1.0))
 
 
@@ -47,6 +56,7 @@ def _load_training_rows(csv_path: Path, cutoff_utc: str, source_timezone: str) -
         "time": pd.to_datetime(raw.iloc[:, 1], errors="coerce"),
         "wind": pd.to_numeric(raw.iloc[:, 2], errors="coerce"),
         "power": pd.to_numeric(raw.iloc[:, 3], errors="coerce"),
+        "temp": pd.to_numeric(raw.iloc[:, 4], errors="coerce"),
     })
     rows["time"] = rows["time"].dt.tz_localize(
         source_timezone, ambiguous="NaT", nonexistent="NaT"
@@ -56,8 +66,10 @@ def _load_training_rows(csv_path: Path, cutoff_utc: str, source_timezone: str) -
         & (rows["time"] <= cutoff)
         & rows["wind"].notna()
         & rows["power"].notna()
+        & rows["temp"].notna()
         & (rows["wind"] >= 0)
         & rows["power"].between(0, 1)
+        & rows["temp"].between(-100, 80)
     ].copy()
     if len(rows) < 100:
         raise ValueError("Not enough valid pre-cutoff turbine observations to train")
@@ -76,9 +88,13 @@ def fit_power_curve(
         raise ValueError(f"Unknown turbine ID: {turbine_id}")
     csv_path = Path(data_dir) / f"{turbine_id}.csv"
     rows = _load_training_rows(csv_path, training_cutoff_utc, source_timezone)
-    rows["bin"] = np.floor(rows["wind"] / BIN_WIDTH_MS).astype(int)
+    rows["adjusted_wind"] = rows["wind"] * (
+        REFERENCE_TEMPERATURE_K / (273.15 + rows["temp"])
+    ) ** (1 / 3)
+    rows["bin"] = np.floor(rows["adjusted_wind"] / BIN_WIDTH_MS).astype(int)
     summary = rows.groupby("bin", observed=True).agg(
-        median_wind=("wind", "median"), median_power=("power", "median"), count=("power", "size")
+        median_wind=("adjusted_wind", "median"), median_power=("power", "median"),
+        count=("power", "size")
     )
     summary = summary.loc[summary["count"] >= MIN_BIN_SAMPLES]
     if len(summary) < 3:
@@ -116,11 +132,11 @@ def predict(
         previous = valid
         hourly.append({
             "valid_time_utc": row["valid_time_utc"],
-            "predicted_normalized_power": curve.estimate(row[wind_feature]),
+            "predicted_normalized_power": curve.estimate(row[wind_feature], row["temperature_2m"]),
         })
     return {
         "id": turbine_id,
-        "model": "empirical_power_curve_median_0.5ms",
+        "model": "density_adjusted_power_curve_median_0.5ms",
         "weather_wind_feature": wind_feature,
         "training_cutoff_utc": training_cutoff_utc,
         "latest_training_time_utc": curve.latest_training_time_utc,
