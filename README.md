@@ -25,4 +25,6 @@ python -m backend.weather 2026-01-31T12:00:00Z turbine-1 --hours 48
 python -m unittest discover -s tests -v
 ```
 
-The weather client is ready; turbine-power modeling, API, UI, rolling backtest, and end-to-end validation remain in progress. It does not claim to produce a generation forecast yet.
+The weather client is ready. API, UI, rolling February forecasts, and end-to-end validation remain in progress.
+
+The first trained per-turbine power model and its conditional January diagnostic are described in [model validation](docs/model-validation.md). API, UI and full rolling February forecast are still in progress.
