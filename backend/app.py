@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import timedelta
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -10,7 +11,8 @@ from fastapi.responses import JSONResponse
 
 from backend.config import Settings
 from backend.data import audit_inputs
-from backend.schemas import ForecastResponse, RollingRequest, RollingResponse, RunRequest
+from backend.explanation import explain_forecast
+from backend.schemas import ExplainRequest, ExplainResponse, ForecastResponse, RollingRequest, RollingResponse, RunRequest
 from backend.weather import parse_utc
 from forecast.service import generate_forecast, generate_rolling_forecasts
 
@@ -30,11 +32,13 @@ def create_app(
     *,
     forecast_generator: Callable[..., dict[str, Any]] | None = None,
     rolling_generator: Callable[..., dict[str, Any]] | None = None,
+    explanation_generator: Callable[..., dict[str, Any]] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Wind Farm Forecast API", version="2.0.0")
     runtime = settings or Settings.from_env()
     forecast_generator = forecast_generator or generate_forecast
     rolling_generator = rolling_generator or generate_rolling_forecasts
+    explanation_generator = explanation_generator or explain_forecast
 
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError):
@@ -62,6 +66,23 @@ def create_app(
             source_timezone=runtime.source_timezone,
             data_dir=runtime.data_dir,
         )
+
+    @app.post("/api/forecast/explain", response_model=ExplainResponse)
+    def explain(payload: ExplainRequest) -> dict[str, Any]:
+        issue_time = _validate_issue_time(payload.issue_time_utc)
+        previous_issue = None
+        if payload.previous_issue_time_utc is not None:
+            previous_issue = _validate_issue_time(payload.previous_issue_time_utc)
+            if parse_utc(issue_time) - parse_utc(previous_issue) != timedelta(days=1):
+                raise ValueError("previous_issue_time_utc must be exactly one day before issue_time_utc")
+        audit_inputs(runtime.data_dir, issue_time, runtime.source_timezone)
+        current = forecast_generator(issue_time, payload.horizon_hours,
+                                     source_timezone=runtime.source_timezone,
+                                     data_dir=runtime.data_dir)
+        previous = (forecast_generator(previous_issue, payload.horizon_hours,
+                                       source_timezone=runtime.source_timezone,
+                                       data_dir=runtime.data_dir) if previous_issue else None)
+        return explanation_generator(current, previous)
 
     @app.post("/api/forecast/rolling", response_model=RollingResponse)
     def run_rolling(payload: RollingRequest) -> dict[str, Any]:

@@ -13,6 +13,20 @@ class RunRequest(BaseModel):
     horizon_hours: Literal[24, 48]
 
 
+class ExplainRequest(RunRequest):
+    model_config = ConfigDict(extra="forbid")
+    previous_issue_time_utc: str | None = None
+
+
+class ExplainResponse(BaseModel):
+    mode: Literal["ai", "local"]
+    text: str
+    evidence: dict
+    notice: str
+    provider: str | None = None
+    model: str | None = None
+
+
 class RollingRequest(BaseModel):
     first_issue_date: date
     last_issue_date: date

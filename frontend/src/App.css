@@ -228,6 +228,16 @@
 .evidence-panel__heading > span { color: #4f7467; font-size: 11px; }
 .evidence-panel__intro, .evidence-panel__footnote { color: #60766f; font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
 .evidence-panel__footnote { padding-top: 12px; border-top: 1px solid #e5eeea; }
+.explanation-panel { padding: 18px 20px; margin: 0 0 24px; border: 1px solid #dce9e3; border-radius: 14px; background: #fff; }
+.explanation-panel__heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.explanation-panel__heading h2 { margin: 0; color: #254d44; font-size: 15px; }
+.explanation-panel__heading p, .explanation-panel__hint { margin: 8px 0 0; color: #60766f; font-size: 12px; line-height: 1.6; }
+.explanation-panel__button { min-height: 36px; font-size: 12px; }
+.explanation-panel__result { margin-top: 15px; padding: 15px; border-radius: 10px; background: #f4f8f6; color: #294c42; }
+.explanation-panel__result strong { font-size: 13px; }
+.explanation-panel__text { margin: 10px 0; white-space: pre-line; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; }
+.explanation-panel__result small { display: block; color: #637e72; font-size: 11px; line-height: 1.5; }
+.explanation-panel__error { margin: 12px 0 0; color: #9e3b32; font-size: 12px; }
 .evidence-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; list-style: none; padding: 0; margin: 15px 0; }
 .evidence-steps li { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 10px; background: #f4f8f6; min-width: 0; }
 .evidence-steps__number { flex: 0 0 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; color: #2c6b5a; background: #e0efe8; font-size: 12px; font-weight: 700; }
@@ -259,6 +269,8 @@
 }
 
 @media (max-width: 640px) {
+  .explanation-panel { padding: 15px 12px; }
+  .explanation-panel__button { width: 100%; justify-content: center; }
   .evidence-panel { padding: 15px 12px; }
   .evidence-steps { grid-template-columns: 1fr; }
   .export-panel__actions { width: 100%; }
