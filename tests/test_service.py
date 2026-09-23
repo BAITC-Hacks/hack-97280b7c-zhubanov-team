@@ -31,6 +31,15 @@ class ForecastServiceTest(unittest.TestCase):
         self.assertEqual(len(result["turbines"]), 2)
         self.assertTrue(all(len(row["hourly"]) == 24 for row in result["turbines"]))
         self.assertEqual(result["weather"]["run_time_utc"], "2026-01-31T00:00:00Z")
+        self.assertEqual(result["weather"]["availability_buffer_hours"], 12)
+        self.assertIn(
+            "Archived weather run selected with a 12-hour availability buffer; actual publication time was not verified.",
+            result["analysis"],
+        )
+        self.assertNotIn(
+            "Predictions use an archived weather run available before the issue time.",
+            result["analysis"],
+        )
         self.assertTrue(any("no declared timezone" in warning for warning in result["warnings"]))
 
     def test_recalculation_uses_only_overlapping_hours(self):
