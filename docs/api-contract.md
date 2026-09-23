@@ -21,10 +21,10 @@ Response:
     {"id":"turbine-2","latitude":43.645150,"longitude":78.535604,"hourly":[{"valid_time_utc":"2026-01-31T13:00:00Z","predicted_normalized_power":0.40}]}
   ],
   "analysis":["Forecast relies on archived weather run 2026-01-31 00:00 UTC."],
-  "warnings":["CSV timezone has not been confirmed by the organizer."]
+  "warnings":["Organizer CSV has no declared timezone; source time is interpreted as a configurable scenario."]
 }
 ```
 
-The example prediction values are placeholders only. Actual responses must contain exactly `horizon_hours` hourly points per turbine and a cutoff that respects the simulated issue time. Until the CSV timezone is confirmed, `training_cutoff_utc` is provisional and must be calculated from an explicit configuration, not inferred from the naive CSV timestamp.
+The example prediction values are placeholders only. Actual responses must contain exactly `horizon_hours` hourly points per turbine and a cutoff that respects the simulated issue time. The team reports that organizers did not define a timezone for the CSV timestamps. `training_cutoff_utc` must therefore be calculated from an explicitly named scenario, not inferred from the naive CSV timestamp. Do not present a scenario's validation MAE as a definitive event score.
 
 `POST /api/forecast/rolling` takes `{"first_issue_date":"2026-01-31","last_issue_date":"2026-02-28","issue_hour_utc":12,"horizon_hours":48}` and returns one run per day plus coverage/validation metadata. `POST /api/forecast/run` can be repeated after a new eligible weather run is available; the UI compares the two results and shows why they changed.

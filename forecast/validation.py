@@ -152,7 +152,7 @@ def validate_january(
         "persistence_evaluated_hours": persistence_hours,
         "issues": results,
         "limitations": [
-            "CSV timezone has not been confirmed by the organizer.",
+            "The team reports that organizers did not define a CSV timezone; this is a scenario.",
             "Training wind measurement height is unknown; weather 10m/100m selection is an assumption.",
             "No February measured power was supplied, so February MAE cannot be calculated.",
         ],

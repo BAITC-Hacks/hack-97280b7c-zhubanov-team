@@ -31,6 +31,7 @@ class ForecastServiceTest(unittest.TestCase):
         self.assertEqual(len(result["turbines"]), 2)
         self.assertTrue(all(len(row["hourly"]) == 24 for row in result["turbines"]))
         self.assertEqual(result["weather"]["run_time_utc"], "2026-01-31T00:00:00Z")
+        self.assertTrue(any("no declared timezone" in warning for warning in result["warnings"]))
 
     def test_recalculation_uses_only_overlapping_hours(self):
         previous = {
