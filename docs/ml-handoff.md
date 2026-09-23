@@ -20,6 +20,8 @@ rolling = generate_rolling_forecasts(
 
 `single` already follows `docs/api-contract.md`: it has `issue_time_utc`, `training_cutoff_utc`, `weather` provenance, `turbines` (two 48-point arrays), `analysis`, and `warnings`. `rolling` has 29 `runs` and 28 `recalculations`; each recalculation compares only the overlapping valid hours. The backend can return these dicts directly from `POST /api/forecast/run` and `POST /api/forecast/rolling`, with normal request validation and error handling. Please coordinate any JSON changes with the frontend teammate.
 
+Additional optional ML fields are now available for the UI: each hourly point includes `forecast_wind_speed_ms` and `forecast_temperature_c`; each turbine includes `operator_insight` with low-generation windows and normalized full-load-hour equivalents; each recalculation change includes `largest_revision` and `mean_forecast_wind_change_ms`. These fields are additive and advisory. Keep them if your response schema allows extras; discuss schema changes with the frontend teammate before exposing them.
+
 For an isolated smoke check without a server:
 
 ```powershell

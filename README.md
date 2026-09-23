@@ -31,3 +31,4 @@ The archived weather client and the rolling forecast module are ready. API and U
 
 The trained per-turbine power model, conditional January diagnostic, and verified 29-issue rolling run are described in [model validation](docs/model-validation.md).
 Backend integration instructions are in [ML handoff](docs/ml-handoff.md).
+The [judge-facing demo loop](docs/demo-differentiator.md) explains the advisory low-generation windows and auditable recalculation comparison.

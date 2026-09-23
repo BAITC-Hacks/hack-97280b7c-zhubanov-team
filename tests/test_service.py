@@ -38,18 +38,24 @@ class ForecastServiceTest(unittest.TestCase):
             "issue_time_utc": "2026-01-31T12:00:00Z",
             "weather": {"run_time_utc": "2026-01-31T00:00:00Z"},
             "turbines": [{"id": "turbine-1", "hourly": [
-                {"valid_time_utc": "2026-02-01T13:00:00Z", "predicted_normalized_power": 0.2}]}],
+                {"valid_time_utc": "2026-02-01T13:00:00Z", "predicted_normalized_power": 0.2,
+                 "forecast_wind_speed_ms": 4.0}]}],
         }
         current = {
             "issue_time_utc": "2026-02-01T12:00:00Z",
             "weather": {"run_time_utc": "2026-02-01T00:00:00Z"},
             "turbines": [{"id": "turbine-1", "hourly": [
-                {"valid_time_utc": "2026-02-01T13:00:00Z", "predicted_normalized_power": 0.3},
+                {"valid_time_utc": "2026-02-01T13:00:00Z", "predicted_normalized_power": 0.3,
+                 "forecast_wind_speed_ms": 5.0},
                 {"valid_time_utc": "2026-02-02T13:00:00Z", "predicted_normalized_power": 0.9}]}],
         }
         change = compare_recalculation(previous, current)["changes"][0]
         self.assertEqual(change["overlapping_hours"], 1)
         self.assertAlmostEqual(change["mean_change_normalized_power"], 0.1)
+        self.assertAlmostEqual(change["mean_forecast_wind_change_ms"], 1.0)
+        self.assertEqual(change["largest_revision"]["valid_time_utc"], "2026-02-01T13:00:00Z")
+        self.assertEqual(change["largest_revision"]["previous_forecast_wind_speed_ms"], 4.0)
+        self.assertEqual(change["largest_revision"]["current_forecast_wind_speed_ms"], 5.0)
 
 
 if __name__ == "__main__":
