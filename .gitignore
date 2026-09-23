@@ -11,3 +11,5 @@ data/input/
 data/cache/
 uploads/
 *.pyc
+.agents/
+.superpowers/

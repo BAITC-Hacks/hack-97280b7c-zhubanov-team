@@ -32,3 +32,53 @@ The archived weather client and the rolling forecast module are ready. API and U
 The trained per-turbine power model, conditional January diagnostic, and verified 29-issue rolling run are described in [model validation](docs/model-validation.md).
 Backend integration instructions are in [ML handoff](docs/ml-handoff.md).
 The [judge-facing demo loop](docs/demo-differentiator.md) explains the advisory low-generation windows and auditable recalculation comparison.
+
+## Backend API
+
+Install dependencies and start the API from the repository root:
+
+```powershell
+python -m pip install -r requirements.txt
+$env:SOURCE_TIMEZONE = "Asia/Almaty"
+$env:DATA_DIR = "data/input"
+uvicorn backend.app:app --reload
+```
+
+Check readiness:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Run a 48-hour forecast for both turbines:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/forecast/run `
+  -Method Post -ContentType "application/json" `
+  -Body '{"issue_time_utc":"2026-01-31T12:00:00Z","horizon_hours":48}'
+```
+
+Run the daily sequence and recalculation comparisons:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/forecast/rolling `
+  -Method Post -ContentType "application/json" `
+  -Body '{"first_issue_date":"2026-01-31","last_issue_date":"2026-02-28","issue_hour_utc":12,"horizon_hours":48}'
+```
+
+The API keeps the selected CSV timezone visible as a scenario warning. February actual power was not supplied, so the rolling response reports forecasts and recalculation evidence, not February MAE.
+
+Before forecasting, the API checks both input files for invalid timestamps,
+duplicate pre-cutoff rows, ten-minute cadence and invalid measurements.
+Hourly aggregation keeps incomplete hours as missing (six samples are required);
+it never fills gaps. The ML module continues to train on its original ten-minute
+observations. Inspect data coverage with:
+
+```powershell
+python -m backend.data --cutoff 2026-01-31T12:00:00Z --source-timezone Asia/Almaty
+```
+
+Run all tests with `python -m pip install -r requirements-dev.txt` followed by
+`python -m pytest`. The integration test exercises 29 issues through the actual
+API and model using explicitly synthetic CSV and weather inputs. It does not
+measure real forecast accuracy or verify external weather availability.
