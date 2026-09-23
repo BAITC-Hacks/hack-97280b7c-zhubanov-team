@@ -334,7 +334,7 @@ function App() {
           {isStale && !showingDemoData && <p className="explanation-panel__hint">Сначала обновите прогноз для выбранных параметров.</p>}
           {explanationError && <p className="explanation-panel__error" role="alert">{explanationError}</p>}
           {visibleExplanation && <div className="explanation-panel__result" role="status">
-            <strong>{visibleExplanation.mode === 'ai' ? 'Ответ NVIDIA AI' : 'Локальное объяснение'}</strong>
+            <strong>{visibleExplanation.mode === 'ai' ? `Ответ ${visibleExplanation.provider || 'ИИ'}` : 'Локальное объяснение'}</strong>
             <p className="explanation-panel__text">{visibleExplanation.text}</p>
             <small>{visibleExplanation.notice}</small>
             <small>Часовой пояс CSV неизвестен. Время публикации погоды не подтверждено. Точность за февраль не измерена.</small>
