@@ -27,6 +27,14 @@ The initial wind-only curve scored 0.185 on Jan 20/23 and 0.190 on Jan 26/29; ad
 
 There are no February actual-power rows in the supplied files. February forecasts can be generated, but February MAE cannot yet be calculated. Nameplate capacities are absent, so all predictions stay in normalized-power units.
 
+## Broader January check
+
+To reduce dependence on four selected issues, the same unchanged model was also checked at **ten issue times**: Jan 1, 4, 7, 10, 13, 16, 19, 22, 25 and 28 at 12:00 UTC. Each issue used its own pre-issue fit and archived 48-hour weather forecast, for **960 turbine-hours** in total. With the same unconfirmed `Asia/Almaty` source-time assumption, the model's MAE was **0.173** versus **0.337** for a simple six-hour recent-power persistence forecast. Model MAE was **0.163** in lead hours 1–24 and **0.182** in lead hours 25–48. Persistence was better on the near-zero-output Jan 7 episode, so the model does not dominate in every regime. These are additional exploratory January diagnostics, not February accuracy or a definitive independent benchmark.
+
+```powershell
+python -m forecast.validation --source-timezone Asia/Almaty --schedule broad
+```
+
 ## Full rolling forecast
 
 `forecast.service.generate_forecast()` combines the archived weather and trained curves for both turbines. `generate_rolling_forecasts()` repeats this for every daily issue from Jan 31 through Feb 28 and compares the 24 overlapping hours between consecutive 48-hour forecasts. The default remains the uncalibrated temperature-adjusted curve. An experimental additive bias correction trained on Jan 20/23 increased the Jan 26/29 MAE from **0.186** to **0.192**, so it is disabled by default.
