@@ -1,0 +1,24 @@
+# Core data/ML
+numpy>=2.0
+pandas>=2.2
+scipy>=1.13
+scikit-learn>=1.5
+
+# Visualization
+matplotlib>=3.9
+seaborn>=0.13
+plotly>=5.24
+
+# Notebook and utilities
+jupyterlab>=4.2
+ipykernel>=6.29
+python-dotenv>=1.0
+requests>=2.32
+pydantic>=2.9
+
+# AI/API clients
+openai>=1.50
+
+# Backend API
+fastapi>=0.115
+uvicorn[standard]>=0.30
