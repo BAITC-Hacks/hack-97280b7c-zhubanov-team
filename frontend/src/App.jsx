@@ -80,7 +80,7 @@ function App() {
   const issueUtc = useMemo(() => {
     try { return issueValueToUtc(issueValue); } catch { return ''; }
   }, [issueValue]);
-  const isStale = !issueUtc || forecast.issue_time_utc !== issueUtc || forecast.horizon_hours !== horizon || forecast.origin !== mode;
+  const isStale = !issueUtc || Date.parse(forecast.issue_time_utc) !== Date.parse(issueUtc) || forecast.horizon_hours !== horizon || forecast.origin !== mode;
   const issueIndex = getIssuePosition(issueValue);
   const isScheduledIssue = issueValue.slice(11, 16) === '12:00';
   const issueNumber = String(issueIndex + 1).padStart(2, '0');
