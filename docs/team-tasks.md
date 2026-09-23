@@ -1,5 +1,7 @@
 # Three-person plan
 
+For the timed four-hour sprint and mandatory push every hour, follow [four-hour-sprint.md](four-hour-sprint.md). The sprint document also answers the model-training and validation decisions.
+
 Work from separate clones/branches, make small PRs into `main`, and use `docs/api-contract.md` as the shared boundary. Pull `main` before starting. All Codex sessions should read `AGENTS.md` first.
 
 | Owner | Branch / files | First deliverable | Completion check |
