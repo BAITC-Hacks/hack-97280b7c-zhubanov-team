@@ -30,6 +30,8 @@ Open `http://127.0.0.1:5173`, choose **Backend API**, and click **Пересчи
 
 Optional exploratory notebooks are archived under `notebooks/legacy/`; see `requirements-notebooks.txt` and `start_notebook.ps1`. Their generic baselines are disabled and are not the wind-forecast evaluation.
 
+After a successful API calculation, the dashboard offers **Скачать CSV** for the current issue and **Паспорт JSON** for its forecast, provenance, limitations and available recalculation comparison. Demo, pending, failed and stale selections cannot be exported. If the browser blocks saving, expand **Показать содержимое файла** to copy the generated text. The **Как получен прогноз** section summarizes returned metadata; it is not a live execution log. Recognized backend explanations are shown in Russian; unknown warnings remain visible unchanged. Run `npm --prefix frontend test` for the export and localization checks.
+
 ## Data setup
 
 Download the private organizer files into ignored local paths:

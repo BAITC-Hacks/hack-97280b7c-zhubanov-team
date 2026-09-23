@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { formatUtc } from './forecast.js';
+import { localizeMessage } from './messages.js';
 
 const CHART = { width: 760, height: 292, left: 58, right: 18, top: 20, bottom: 48 };
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1];
@@ -97,7 +98,7 @@ export default function ForecastChart({ turbine, index }) {
               </text>
             </g>
           ))}
-          <text className="chart-axis-caption" x={CHART.left} y={CHART.height - 4}>Время выпуска — UTC</text>
+          <text className="chart-axis-caption" x={CHART.left} y={CHART.height - 4}>Время прогноза — UTC</text>
         </svg>
         <figcaption className="sr-only">Нормализованная мощность от 0 до 1. Наведите указатель на точки для просмотра значений.</figcaption>
       </figure>
@@ -141,7 +142,7 @@ function OperatorInsight({ insight }) {
           ))}
         </ul>
       ) : <p className="operator-insight__empty">Нет окон длительностью не меньше заданного минимума.</p>}
-      <p className="operator-insight__note">{insight.note ?? 'Показатель носит информационный характер.'} В длительность включены обе крайние почасовые точки. Эквивалентные часы не являются MWh; порог — параметр сценария, а не правило энергосети.</p>
+      <p className="operator-insight__note">{localizeMessage(insight.note) ?? 'Показатель носит информационный характер.'} В длительность включены обе крайние почасовые точки. Эквивалентные часы не являются МВт·ч; порог — параметр сценария, а не правило энергосети.</p>
     </aside>
   );
 }
