@@ -1,12 +1,14 @@
-# Organizational Structure and Functions Analysis
+# HackAlem — Wind Farm Forecast Agent
 
-HackAlem team repository for the [official organizational analysis case](https://docs.google.com/document/d/1m-r31DH6Q__9OcN4WiP453CE6drlTTQ8Px3xi3IiVHk/edit). The goal is to compare organization documents before and after reorganization, identify possible lost or duplicated functions and potential conflicts of interest, and present an evidence-backed conclusion for human review.
+Official case: [Agentic AI for wind farm generation forecasting](https://docs.google.com/document/d/1Fn5IJoj87Fx7IAknG26zkfX8c0eq7feCujd0m66PCgY/edit). Our goal is hourly normalized-power forecasts for two wind turbines over a 24–48-hour horizon, issued repeatedly during February 2026 using weather forecasts available at each issue time.
 
-Current status: team instructions and interface contract are prepared. Implementation and launch instructions will be added as the three branches are integrated; this README does not claim a working prototype yet.
+The organizer supplied two 10-minute CSV histories ending January 31, 2026. They contain no February actual power, so February forecast error cannot yet be measured. See [data audit](docs/data-audit.md), [case map](docs/case-map.md), [API contract](docs/api-contract.md), and [team tasks](docs/team-tasks.md).
 
-- [Case requirements and source documents](docs/case-map.md)
-- [API and analysis contract](docs/api-contract.md)
-- [Tasks for frontend and two backend owners](docs/team-tasks.md)
-- [Codex repository instructions](AGENTS.md)
+## Data setup
 
-Each person works from their own clone and branch. All findings shown in the eventual UI must cite an exact supplied document fragment. The final runnable demo, checks, architecture, known limits, and installation commands belong here before submission.
+Download the private organizer files into ignored local paths:
+
+- [Turbine 1](https://drive.google.com/file/d/1hubNF3tgc7DbgXxHLpIF6zIBHtvMyzLX/view) → `data/input/turbine-1.csv`
+- [Turbine 2](https://drive.google.com/file/d/1_WTrYhZ3-71A9IpkBb9RHPN7ncVaupBk/view) → `data/input/turbine-2.csv`
+
+Never commit these source files. Run instructions and validation commands will be added with the implementation. Until then this repository contains the agreed requirements and interface; it is not yet a working forecast application.
