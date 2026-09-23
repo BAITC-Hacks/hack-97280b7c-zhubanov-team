@@ -133,6 +133,8 @@ def predict(
         hourly.append({
             "valid_time_utc": row["valid_time_utc"],
             "predicted_normalized_power": curve.estimate(row[wind_feature], row["temperature_2m"]),
+            "forecast_wind_speed_ms": float(row[wind_feature]),
+            "forecast_temperature_c": float(row["temperature_2m"]),
         })
     return {
         "id": turbine_id,

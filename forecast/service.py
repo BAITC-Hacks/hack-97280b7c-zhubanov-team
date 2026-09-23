@@ -8,6 +8,7 @@ import json
 
 from backend.weather import LOCATIONS, fetch_archived_forecast, parse_utc
 from forecast.calibration import LAST_CALIBRATION_VALID_TIME, fit_weather_bias
+from forecast.insights import summarize_turbine_forecast
 from forecast.power_curve import predict
 
 
@@ -50,6 +51,7 @@ def generate_forecast(
                     0.0, min(1.0, hour["predicted_normalized_power"] + offset)
                 )
             model_result["calibration"] = calibration
+        model_result["operator_insight"] = summarize_turbine_forecast(model_result["hourly"])
         turbines.append({**model_result, "latitude": latitude, "longitude": longitude})
 
     averages = {
@@ -74,6 +76,7 @@ def generate_forecast(
             "Predictions use an archived weather run available before the issue time.",
             "A per-turbine bias correction was fitted on Jan 20 and 23 archived forecast issues."
             if calibrate else "No weather-forecast bias correction was applied.",
+            "Low-generation windows and full-load-hour equivalents are advisory scenario outputs, not MW/MWh.",
         ],
         "warnings": [
             f"Organizer CSV has no declared timezone; interpreted as {source_timezone} for this scenario.",
@@ -99,6 +102,27 @@ def compare_recalculation(previous: dict, current: dict) -> dict:
             for row in turbine["hourly"]
             if row["valid_time_utc"] in earlier
         ]
+        overlapping = [
+            (earlier[row["valid_time_utc"]], row)
+            for row in turbine["hourly"]
+            if row["valid_time_utc"] in earlier
+        ]
+        biggest = max(
+            overlapping,
+            key=lambda pair: abs(pair[1]["predicted_normalized_power"] - pair[0]),
+            default=None,
+        )
+        previous_by_time = {
+            row["valid_time_utc"]: row
+            for row in by_id[turbine["id"]]["hourly"]
+        }
+        wind_differences = [
+            row["forecast_wind_speed_ms"]
+            - previous_by_time[row["valid_time_utc"]]["forecast_wind_speed_ms"]
+            for _, row in overlapping
+            if "forecast_wind_speed_ms" in row
+            and "forecast_wind_speed_ms" in previous_by_time[row["valid_time_utc"]]
+        ]
         changes.append({
             "turbine_id": turbine["id"],
             "overlapping_hours": len(differences),
@@ -106,6 +130,20 @@ def compare_recalculation(previous: dict, current: dict) -> dict:
             if differences else None,
             "mean_absolute_change_normalized_power": sum(abs(value) for value in differences)
             / len(differences) if differences else None,
+            "mean_forecast_wind_change_ms": sum(wind_differences) / len(wind_differences)
+            if wind_differences else None,
+            "largest_revision": {
+                "valid_time_utc": biggest[1]["valid_time_utc"],
+                "previous_normalized_power": biggest[0],
+                "current_normalized_power": biggest[1]["predicted_normalized_power"],
+                "absolute_change_normalized_power": abs(
+                    biggest[1]["predicted_normalized_power"] - biggest[0]
+                ),
+                "previous_forecast_wind_speed_ms": previous_by_time[
+                    biggest[1]["valid_time_utc"]
+                ].get("forecast_wind_speed_ms"),
+                "current_forecast_wind_speed_ms": biggest[1].get("forecast_wind_speed_ms"),
+            } if biggest else None,
         })
     return {
         "previous_issue_time_utc": previous["issue_time_utc"],
