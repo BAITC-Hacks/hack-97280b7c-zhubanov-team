@@ -18,7 +18,14 @@ test('keeps timezone scenarios explicit, including the scenario uncertainty', ()
   }
 });
 
-test('weather wording makes the buffer assumption and unverified publication explicit', () => {
+test('weather wording preserves the 12-hour buffer and unverified publication', () => {
+  const translated = localizeMessage('Archived weather run selected with a 12-hour availability buffer; actual publication time was not verified.');
+  assert.match(translated, /буфером доступности 12 часов/);
+  assert.match(translated, /допущение/);
+  assert.match(translated, /фактическое время публикации не проверено/);
+});
+
+test('legacy weather wording remains localized with the uncertainty explicit', () => {
   const translated = localizeMessage('Predictions use an archived weather run available before the issue time.');
   assert.match(translated, /буферу/);
   assert.match(translated, /допущение/);

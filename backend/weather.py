@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlencode
@@ -37,17 +38,24 @@ def available_run(issue_time: datetime) -> datetime:
 def select_hours(payload: dict, issue_time: datetime, horizon_hours: int) -> list[dict]:
     if horizon_hours not in (24, 48):
         raise ValueError("horizon_hours must be 24 or 48")
-    hourly = payload.get("hourly", {})
-    times = hourly.get("time", [])
-    if any(len(hourly.get(name, [])) != len(times) for name in VARIABLES):
+    if not isinstance(payload, dict) or not isinstance(payload.get("hourly"), dict):
+        raise ValueError("Weather response must contain an hourly object")
+    hourly = payload["hourly"]
+    times = hourly.get("time")
+    if not isinstance(times, list) or any(not isinstance(value, str) for value in times):
+        raise ValueError("Weather response time must be a list of timestamp strings")
+    if any(not isinstance(hourly.get(name), list) for name in VARIABLES):
+        raise ValueError("Weather response hourly variables must be lists")
+    if any(len(hourly[name]) != len(times) for name in VARIABLES):
         raise ValueError("Weather response has incomplete hourly variables")
     selected = []
     for index, raw_time in enumerate(times):
         valid_time = parse_utc(raw_time + "Z" if "+" not in raw_time and not raw_time.endswith("Z") else raw_time)
         if issue_time < valid_time <= issue_time + timedelta(hours=horizon_hours):
             values = {name: hourly[name][index] for name in VARIABLES}
-            if any(value is None for value in values.values()):
-                raise ValueError(f"Weather variable missing at {valid_time.isoformat()}")
+            if any(isinstance(value, bool) or not isinstance(value, (int, float))
+                   or not math.isfinite(value) for value in values.values()):
+                raise ValueError(f"Weather variable must be finite numeric data at {valid_time.isoformat()}")
             selected.append({"valid_time_utc": valid_time.isoformat().replace("+00:00", "Z"), **values})
     if len(selected) != horizon_hours:
         raise ValueError(f"Expected {horizon_hours} forecast hours, found {len(selected)}")

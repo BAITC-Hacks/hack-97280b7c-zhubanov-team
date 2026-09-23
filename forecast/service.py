@@ -73,7 +73,7 @@ def generate_forecast(
         "analysis": [
             f"Mean forecast normalized power: turbine-1 {averages['turbine-1']:.3f}; "
             f"turbine-2 {averages['turbine-2']:.3f}.",
-            "Predictions use an archived weather run available before the issue time.",
+            "Archived weather run selected with a 12-hour availability buffer; actual publication time was not verified.",
             "A per-turbine bias correction was fitted on Jan 20 and 23 archived forecast issues."
             if calibrate else "No weather-forecast bias correction was applied.",
             "Low-generation windows and full-load-hour equivalents are advisory scenario outputs, not MW/MWh.",

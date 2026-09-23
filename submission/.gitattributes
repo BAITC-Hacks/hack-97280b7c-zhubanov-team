@@ -1,0 +1,3 @@
+# Preserve exported bytes so manifest hashes work on every operating system.
+*.csv -text
+*.json -text

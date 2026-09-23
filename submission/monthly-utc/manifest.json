@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "issue_count": 29,
+  "row_count": 2784,
+  "horizon_hours": 48,
+  "turbine_ids": [
+    "turbine-1",
+    "turbine-2"
+  ],
+  "first_issue_time_utc": "2026-01-31T12:00:00Z",
+  "last_issue_time_utc": "2026-02-28T12:00:00Z",
+  "source_timezone_scenarios": [
+    "UTC"
+  ],
+  "forecast_models": [
+    "density_adjusted_power_curve_median_0.5ms"
+  ],
+  "weather_sources": [
+    {
+      "source": "Open-Meteo Single Runs API",
+      "model": "ecmwf_ifs"
+    }
+  ],
+  "target": "normalized active power",
+  "target_unit": "dimensionless [0,1]",
+  "validation_scope": "Structure, ranges, continuity and declared temporal provenance only; no forecast accuracy evaluation.",
+  "timezone_note": "Source timezone values are supplied assumptions, not organizer-confirmed timezones.",
+  "weather_availability_note": "The stated buffer is an availability assumption; actual forecast publication timestamps were not verified.",
+  "input_sha256": "2f120596c31b485a640b1b55405e96db6d999c383a6acda8c0905baec2d36471",
+  "exported_at_utc": "2026-09-23T10:52:48.217586Z",
+  "exporter_git_revision": "9aaac28dee1794bf74f8ec3bb2e7016d964b38ad",
+  "files": {
+    "forecasts.csv": {
+      "sha256": "ac760852d3021660ac0f93e8c065332cf454107a03ff9287404c46cec6113f1c"
+    }
+  }
+}

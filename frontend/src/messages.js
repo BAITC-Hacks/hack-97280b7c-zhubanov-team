@@ -1,5 +1,7 @@
 // Translate only recognized messages; new backend warnings must remain visible.
 const MESSAGES = new Map([
+  ['Archived weather run selected with a 12-hour availability buffer; actual publication time was not verified.',
+    'Архивный запуск погодной модели выбран с буфером доступности 12 часов. Это допущение: фактическое время публикации не проверено.'],
   ['Predictions use an archived weather run available before the issue time.',
     'Использован архивный запуск погодной модели, выбранный по заданному временному буферу до выпуска прогноза. Это допущение о доступности: фактическое время публикации не проверено.'],
   ['A per-turbine bias correction was fitted on Jan 20 and 23 archived forecast issues.',
