@@ -7,7 +7,7 @@ The final case is [Agentic AI for wind farm generation forecasting](https://docs
 - Training turbine observations end at **2026-01-31 23:50** in the supplied CSVs. Never fit, calibrate, or select a model with February 2026 turbine observations when simulating a January 31 issue.
 - For every historical issue time, weather features must come from a forecast model run that was already available then. Never substitute later observed, reanalysis, or stitched historical weather as if it were a forecast.
 - Record `issue_time_utc`, `weather_run_utc`, weather source/model, forecast valid time, and training cutoff in each generated result. Enforce `weather_run_utc < issue_time_utc` and an explicit availability buffer.
-- The target is **normalized active power** in [0,1]. Do not label it MW/MWh or sum turbine output into plant energy without nameplate capacities. Timezone of source timestamps is not stated; make the assumption explicit and configurable.
+- The target is **normalized active power** in [0,1]. Do not label it MW/MWh or sum turbine output into plant energy without nameplate capacities. The team reports that organizers did not assign a timezone to the source CSV timestamps. Make the interpretation explicit and configurable, show scenario sensitivity, and never call one scenario's MAE a definitive score.
 - Keep raw supplied CSVs, caches, credentials, and `.env` out of Git. Synthetic fixtures may be committed if clearly labeled.
 
 ## Team workflow
